@@ -12,7 +12,7 @@ diff -ru a/src/main.c b/src/main.c
  				minipro_close(handle);
 diff -ru a/src/minipro.c b/src/minipro.c
 --- a/src/minipro.c	2025-08-03 03:07:25.000000000 +0900
-+++ b/src/minipro.c	2026-10-16 17:40:25.120238595 +0900
++++ b/src/minipro.c	2026-10-16 18:23:11.505674911 +0900
 @@ -404,6 +404,7 @@
  		handle->minipro_set_pin_drivers = t48_set_pin_drivers;
  		handle->minipro_set_voltages = t48_set_voltages;
@@ -21,17 +21,15 @@ diff -ru a/src/minipro.c b/src/minipro.c
  		break;
  	case MP_T56:
  		handle->minipro_begin_transaction = t56_begin_transaction;
-diff -ru a/src/t48.c b/src/t48.c
---- a/src/t48.c	2025-08-03 03:07:25.000000000 +0900
-+++ b/src/t48.c	2026-10-16 17:51:26.799167324 +0900
-@@ -1662,3 +1662,208 @@
- 		fprintf(stderr, "\nHardware test completed successfully!\n");
- 	return EXIT_SUCCESS;
+@@ -823,6 +824,49 @@
  }
-+
+ 
+ /* Pin contact test */
 +/*
 + * Draw the ZIF socket as text, chip at the top, the way Xgpro shows it.
 + * Left column is ZIF pin 1-20 top to bottom, right column is 40-21.
++ * state[] is indexed by ZIF pin (1-40): 0 not under the chip, 1 ok,
++ * 2 bad contact, 3 GND, 4 high with nothing driven, 5 not tested.
 + */
 +static const char *pin_mark(uint8_t st)
 +{
@@ -45,7 +43,7 @@ diff -ru a/src/t48.c b/src/t48.c
 +	}
 +}
 +
-+static void t48_print_pin_map(const uint8_t *state, int d_pins)
++void minipro_print_pin_map(const uint8_t *state, int d_pins)
 +{
 +	int half = d_pins / 2;
 +	int row;
@@ -69,6 +67,28 @@ diff -ru a/src/t48.c b/src/t48.c
 +		fprintf(stderr, "           +---------+\n");
 +	fprintf(stderr, "  ok = good   XX = bad contact   HI = high with nothing driven\n\n");
 +}
++
+ int minipro_pin_test(minipro_handle_t *handle)
+ {
+ 	assert(handle != NULL);
+diff -ru a/src/minipro.h b/src/minipro.h
+--- a/src/minipro.h	2025-08-03 03:07:25.000000000 +0900
++++ b/src/minipro.h	2026-10-16 18:23:11.505987535 +0900
+@@ -372,6 +372,7 @@
+ int minipro_hardware_check(minipro_handle_t *handle);
+ int minipro_firmware_update(minipro_handle_t *handle, const char *firmware);
+ int minipro_pin_test(minipro_handle_t *handle);
++void minipro_print_pin_map(const uint8_t *state, int d_pins);
+ int minipro_logic_ic_test(minipro_handle_t *handle);
+ int minipro_set_zif_direction(minipro_handle_t *handle, uint8_t *zif_dir);
+ int minipro_set_zif_state(minipro_handle_t *handle, uint8_t *zif_state);
+diff -ru a/src/t48.c b/src/t48.c
+--- a/src/t48.c	2025-08-03 03:07:25.000000000 +0900
++++ b/src/t48.c	2026-10-16 18:23:11.505043976 +0900
+@@ -1662,3 +1662,167 @@
+ 		fprintf(stderr, "\nHardware test completed successfully!\n");
+ 	return EXIT_SUCCESS;
+ }
 +
 +/*
 + * Pin contact test for the T48.
@@ -223,7 +243,7 @@ diff -ru a/src/t48.c b/src/t48.c
 +		if (map->gnd_table[i] >= 1 && map->gnd_table[i] <= 40)
 +			state[map->gnd_table[i]] = 3;
 +
-+	t48_print_pin_map(state, d_pins);
++	minipro_print_pin_map(state, d_pins);
 +
 +	if (!ret)
 +		fprintf(stderr, "Pin test passed.\n");
@@ -243,3 +263,38 @@ diff -ru a/src/t48.h b/src/t48.h
 +int t48_pin_test(minipro_handle_t *handle);
  
  #endif
+diff -ru a/src/tl866iiplus.c b/src/tl866iiplus.c
+--- a/src/tl866iiplus.c	2025-08-03 03:07:25.000000000 +0900
++++ b/src/tl866iiplus.c	2026-10-16 18:23:11.506507151 +0900
+@@ -1083,6 +1083,13 @@
+ 	if (msg_send(handle->usb_handle, msg, sizeof(msg)))
+ 		return EXIT_FAILURE;
+ 
++	/* Per ZIF pin result for the socket drawing */
++	uint8_t state[41];
++	memset(state, 0, sizeof(state));
++	for (i = 1; i <= 40; i++)
++		if (i <= x_pin || i > 40 - x_pin)
++			state[i] = 5;
++
+ 	/* Now check for bad pin contact */
+ 	ret = EXIT_SUCCESS;
+ 	for (i = 0; i < map->mask_count; i++) {
+@@ -1095,8 +1102,17 @@
+ 		if (!pins[p_pin - 1]) {
+ 			fprintf(stderr, "Bad contact on pin:%u\n",d_pin);
+ 			ret = EXIT_FAILURE;
++			if (p_pin >= 1 && p_pin <= 40)
++				state[p_pin] = 2;
++		} else if (p_pin >= 1 && p_pin <= 40) {
++			state[p_pin] = 1;
+ 		}
+ 	}
++	for (i = 0; i < map->gnd_count; i++)
++		if (map->gnd_table[i] >= 1 && map->gnd_table[i] <= 40)
++			state[map->gnd_table[i]] = 3;
++
++	minipro_print_pin_map(state, d_pins);
+ 	if (!ret)
+ 		fprintf(stderr, "Pin test passed.\n");
+ 

@@ -75,7 +75,7 @@ Before every write KeroBurn runs a pin contact test, the same idea as the red X'
            +---------+
 ```
 
-minipro 0.7.4 only has a pin test for the TL866II+, so KeroBurn ships its own for the T48 as a patch (`patches/keroburn-t48-pin-test.patch`). It puts about 3.3V on the chip's GND pin with every other pin pulled down. Each leg that really touches the socket gets pulled up through the chip's own protection diode and reads high. A leg that doesn't stays low. You can also run it on its own with the Pin Check button.
+minipro 0.7.4 only has a pin test for the TL866II+, so KeroBurn ships its own for the T48 as a patch (`patches/keroburn-t48-pin-test.patch`). The same patch adds the socket drawing to the TL866II+ test too. It puts about 3.3V on the chip's GND pin with every other pin pulled down. Each leg that really touches the socket gets pulled up through the chip's own protection diode and reads high. A leg that doesn't stays low. You can also run it on its own with the Pin Check button.
 
 A few limits:
 
