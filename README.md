@@ -64,7 +64,7 @@ Add one with the + button, or right-click an existing one and Duplicate. In the 
 
 Watch out, some parts are named differently for the T48 than for the old TL866A. A29040 in PLCC32 is `A29040L@PLCC32` on the T48, for example.
 
-![An ATF16V8B preset with a JEDEC file queued](docs/gal-preset.png)
+![Picking a device name from the search list in the preset editor](docs/preset-editor.png)
 
 Presets live in `~/Library/Application Support/KeroBurn/presets.json`. You can edit it by hand and reload it from Settings.
 
