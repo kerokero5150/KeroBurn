@@ -227,6 +227,13 @@ final class Session: ObservableObject {
                 ActivityLog.record(kind: kind, ok: ok, preset: p, file: file, size: nil,
                                    tail: ok ? [] : Array(output.suffix(8)))
             }
+            // PLDs (GAL, ATF, ...) have no ID; minipro exits 1 but nothing is wrong with the chip.
+            if !ok, kind == .chipID, output.contains(where: { $0.contains("doesn't have a chip ID") }) {
+                let msg: String = "This chip has no ID to read. That's normal for GAL, ATF and other PLDs."
+                self.outcome = .success(msg)
+                self.runner.append(.info, msg)
+                return
+            }
             if ok {
                 self.outcome = .success("\(label) OK")
                 self.runner.append(.success, "\(label) OK")
