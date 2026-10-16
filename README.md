@@ -29,6 +29,8 @@ Drop more than one file and they get written in order, one chip each. After ever
 
 ![Waiting for the next chip in a 4-chip run](docs/chip-swap.png)
 
+Under the preset name you'll see which programmer is connected and its firmware, plus the chip ID once it's been checked. That's there on purpose, so a screenshot posted when asking for help already says what hardware it's on.
+
 ## Hex View
 
 ![Hex View with a 2764 ROM image loaded](docs/hex-view.png)
@@ -41,19 +43,23 @@ It also tries to tell you what went wrong:
 - if every mismatch is on even or odd addresses only, it says so, because that's usually a HI/LO mix-up
 - if the chip reads back as all FF, it says the chip looks blank
 
-Sum and CRC32 are shown for both the file and the chip. Nothing is editable yet, it's a viewer. For GALs it shows the .jed as text, so a file vs chip compare there will flag header differences too. Use Verify for PLDs.
+Sum and CRC32 are shown for both the file and the chip. Nothing is editable yet, it's a viewer.
+
+Read… on the main screen opens Hex View and reads the chip straight away. Nothing is saved unless you press Save Chip…. GALs and other PLDs still go straight to a .jed file, since they don't show as hex. For GALs it shows the .jed as text, so a file vs chip compare there will flag header differences too. Use Verify for PLDs.
 
 The other buttons are straight minipro options:
 
 | Button | minipro |
 |---|---|
 | Verify | `-m` |
-| Read… | `-r` |
+| Read… | `-r` (into Hex View) |
 | Blank Check | `-b` |
 | Erase | `-E` |
-| Chip ID | `-D` |
+| Chip ID | `-D` (see below) |
 | Pin Check | `-z` |
 | Check Programmer | `-k` |
+
+**Chip ID** also tells you what the chip really is when it doesn't match. With an AM29F040 preset and an SST39SF040 in the socket, you get "Wrong chip: it reads as SST39SF040" and a button to switch to that preset (or make one). Handy for parts with a sticker over the number. Pick any preset from the same family first, since the ID is read differently for flash, EPROMs and so on. It only works for chips minipro has an ID for. Many older EPROMs, GALs and the AT28C16 don't have one, and KeroBurn just says so.
 
 The checkboxes are saved per preset:
 
@@ -90,7 +96,7 @@ A few limits:
 
 ## Presets
 
-Add one with the + button, or right-click an existing one and Duplicate. In the editor, type part of a name like `2732` or `2764` and pick from the list. The list comes from the T48 / TL866II+ section of minipro's database, so a name with a green check is one your programmer will accept. An orange triangle means minipro doesn't know that name.
+Add one with the + button, or right-click an existing one and Duplicate. In the editor, type part of a name like `2732` or `2764` and pick from the list (the up and down arrows work too). You can give a preset an emoji icon so it's easier to spot in the sidebar. The list comes from the T48 / TL866II+ section of minipro's database, so a name with a green check is one your programmer will accept. An orange triangle means minipro doesn't know that name.
 
 Watch out, some parts are named differently for the T48 than for the old TL866A. A29040 in PLCC32 is `A29040L@PLCC32` on the T48, for example.
 
@@ -112,7 +118,6 @@ Every job gets one line in `~/Library/Logs/KeroBurn/KeroBurn-YYYY-MM.log`: time,
 
 **GALs vs ATF chips.** An Atmel ATF16V8B is pin compatible with a GAL16V8 but programs differently. Writing it with a GAL preset ends in "Overcurrent protection!". Use the ATF16V8B preset (or ATF22V10C for 22V10s).
 
-**"Id failed" on chips without an ID (beta 2).** Some parts have no chip ID in minipro's database: GALs, ATFs, the AT28C16 and many EPROMs. Pressing Chip ID on one of those shows a red "Id failed (exit 1)". The chip is fine. minipro just reports "This chip doesn't have a chip ID!" and exits with an error. The next beta shows a plain note instead.
 
 ## Building from source
 
