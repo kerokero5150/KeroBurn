@@ -221,6 +221,11 @@ struct PresetRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            if !preset.icon.isEmpty {
+                Text(verbatim: preset.icon)
+                    .font(.system(size: 20))
+                    .frame(width: 28)
+            }
             VStack(alignment: .leading, spacing: 1) {
                 Text(preset.name).lineLimit(1)
                 Text(verbatim: deviceLabel)
@@ -251,6 +256,7 @@ struct DetailPane: View {
 
     @State private var dropTargeted = false
     @State private var showHex = false
+    @State private var readOnOpen = false
 
     init(preset: Binding<Preset>, onEdit: @escaping () -> Void) {
         _preset = preset
@@ -289,7 +295,7 @@ struct DetailPane: View {
         }
         .padding(18)
         .sheet(isPresented: $showHex) {
-            HexViewer(preset: preset, initialFile: session.files.first?.url)
+            HexViewer(preset: preset, initialFile: session.files.first?.url, readOnOpen: readOnOpen)
                 .environmentObject(session)
                 .environmentObject(runner)
         }
@@ -310,6 +316,7 @@ struct DetailPane: View {
                 if !preset.note.isEmpty {
                     Text(preset.note).foregroundColor(.secondary).font(.callout)
                 }
+                hardwareLine
             }
             Spacer()
             Button("Check Programmer") {
@@ -319,6 +326,42 @@ struct DetailPane: View {
             Button("Edit Preset…", action: onEdit)
                 .disabled(busy)
         }
+    }
+
+    // Programmer and confirmed chip ID, so they show up in screenshots people post when asking for help.
+    private var programmerText: String {
+        if runner.programmerMissing { return "No programmer found" }
+        guard let model = runner.programmerModel else { return "Programmer not checked yet" }
+        if let fw = runner.programmerFirmware { return model + "  ·  firmware " + fw }
+        return model
+    }
+
+    private var programmerColor: Color {
+        if runner.programmerMissing { return .red }
+        if runner.programmerModel != nil { return .green }
+        return .secondary
+    }
+
+    private var hardwareLine: some View {
+        HStack(spacing: 14) {
+            HStack(spacing: 5) {
+                Image(systemName: "circle.fill")
+                    .font(.system(size: 8))
+                    .foregroundColor(programmerColor)
+                Text(verbatim: programmerText)
+            }
+            if let cid = runner.lastChipID, cid.device == preset.device {
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                    Text(verbatim: "Chip ID " + cid.id)
+                        .font(.system(.callout, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .font(.callout)
+        .foregroundColor(.secondary)
+        .padding(.top, 2)
     }
 
     @ViewBuilder private var deviceBadge: some View {
@@ -512,9 +555,18 @@ struct DetailPane: View {
             Divider().frame(height: 22)
 
             Group {
-                Button("Hex View…") { showHex = true }
+                Button("Hex View…") { readOnOpen = false; showHex = true }
                     .help("Look at a file, read the chip and compare them byte by byte")
-                Button("Read…") { session.read(preset: preset) }
+                Button("Read…") {
+                    // PLDs come back as JEDEC text, so those still go straight to a file.
+                    if preset.isLogicDevice {
+                        session.read(preset: preset)
+                    } else {
+                        readOnOpen = true
+                        showHex = true
+                    }
+                }
+                .help("Read the chip and look at it. Save it from there if you want to keep it.")
                 Button("Blank Check") { session.runSingle(.blank, preset: preset, extra: ["-b"]) }
                 Button("Erase") { session.runSingle(.erase, preset: preset, extra: ["-E"]) }
                 Button("Chip ID") { session.runSingle(.chipID, preset: preset, extra: ["-D"]) }

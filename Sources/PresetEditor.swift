@@ -7,6 +7,7 @@ struct PresetEditor: View {
 
     @State private var draft: Preset
     @State private var query: String
+    @State private var keyMonitor: Any?
     let isNew: Bool
     let onSave: (Preset) -> Void
 
@@ -46,6 +47,17 @@ struct PresetEditor: View {
                 }
             }
 
+            row("Icon") {
+                HStack {
+                    TextField("", text: $draft.icon)
+                        .frame(width: 44)
+                        .font(.system(size: 18))
+                    Text("Optional. One emoji, Ctrl-Cmd-Space opens the picker.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
             row("Note") {
                 TextField("Optional, e.g. which board this is for", text: $draft.note)
             }
@@ -69,6 +81,7 @@ struct PresetEditor: View {
                 Button("Save") {
                     draft.name = draft.name.trimmingCharacters(in: .whitespaces)
                     draft.device = draft.device.trimmingCharacters(in: .whitespaces)
+                    draft.icon = draft.icon.trimmingCharacters(in: .whitespaces).first.map { String($0) } ?? ""
                     onSave(draft)
                     dismiss()
                 }
@@ -80,6 +93,11 @@ struct PresetEditor: View {
         .frame(width: 560)
         .onAppear {
             if !catalog.isLoaded { catalog.load() }
+            installArrowKeys()
+        }
+        .onDisappear {
+            if let m = keyMonitor { NSEvent.removeMonitor(m) }
+            keyMonitor = nil
         }
     }
 
@@ -122,6 +140,7 @@ struct PresetEditor: View {
             .frame(height: 180, alignment: .topLeading)
         case .idle, .loaded:
             let results = catalog.search(query)
+            ScrollViewReader { proxy in
             List(results, id: \.self) { name in
                 HStack {
                     Text(name).font(.system(.body, design: .monospaced))
@@ -131,14 +150,13 @@ struct PresetEditor: View {
                     }
                 }
                 .contentShape(Rectangle())
-                .onTapGesture {
-                    draft.device = name
-                    if draft.name == "New Preset" || draft.name.isEmpty {
-                        draft.name = Self.friendlyName(for: name)
-                    }
-                }
+                .onTapGesture { pick(name) }
+                .id(name)
             }
             .frame(height: 180)
+            .onChange(of: draft.device) { dev in
+                proxy.scrollTo(dev, anchor: .center)
+            }
             .overlay(
                 Group {
                     if query.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -148,6 +166,33 @@ struct PresetEditor: View {
                     }
                 }
             )
+            }
+        }
+    }
+
+    private func pick(_ name: String) {
+        draft.device = name
+        if draft.name == "New Preset" || draft.name.isEmpty {
+            draft.name = Self.friendlyName(for: name)
+        }
+    }
+
+    // Up/down arrows step through the search results while typing in the search box.
+    private func installArrowKeys() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let down = event.keyCode == 125
+            let up = event.keyCode == 126
+            guard down || up else { return event }
+            let results = catalog.search(query)
+            guard !results.isEmpty else { return event }
+            let current = results.firstIndex(of: draft.device)
+            var next = 0
+            if let c = current {
+                next = down ? min(c + 1, results.count - 1) : max(c - 1, 0)
+            }
+            pick(results[next])
+            return nil
         }
     }
 

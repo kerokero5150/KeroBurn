@@ -86,6 +86,11 @@ struct LogLine: Identifiable {
     let text: String
 }
 
+struct ChipIDResult: Equatable {
+    let device: String
+    let id: String
+}
+
 // Runs one minipro command at a time and streams its output.
 final class MiniproRunner: ObservableObject {
     @Published private(set) var lines: [LogLine] = []
@@ -95,11 +100,20 @@ final class MiniproRunner: ObservableObject {
     @Published private(set) var phase: String?
     @Published private(set) var phaseStart = Date()
 
+    // What minipro last told us about the hardware, shown in the window so it ends up in screenshots.
+    @Published private(set) var programmerModel: String?
+    @Published private(set) var programmerFirmware: String?
+    @Published private(set) var programmerMissing = false
+    @Published private(set) var lastChipID: ChipIDResult?
+
+    private var currentDevice: String?
+    private var checkingProgrammer = false
     private var process: Process?
     private var pending = ""
     private let maxLines = 3000
 
     func append(_ kind: LogLine.Kind, _ text: String) {
+        if kind == .output { noteHardware(text) }
         lines.append(LogLine(kind: kind, text: text))
         if lines.count > maxLines { lines.removeFirst(lines.count - maxLines) }
     }
@@ -125,6 +139,12 @@ final class MiniproRunner: ObservableObject {
         p.standardError = pipe
 
         let startIndex = lines.count
+        if let i = args.firstIndex(of: "-p"), i + 1 < args.count {
+            currentDevice = args[i + 1]
+        } else {
+            currentDevice = nil
+        }
+        checkingProgrammer = args.contains("-k")
         phase = "Starting"
         phaseStart = Date()
         append(.command, "$ minipro " + args.map(Self.shellQuote).joined(separator: " "))
@@ -163,6 +183,45 @@ final class MiniproRunner: ObservableObject {
             pipe.fileHandleForReading.readabilityHandler = nil
             append(.error, "Could not start minipro: \(error.localizedDescription)")
             completion(-1, [])
+        }
+    }
+
+    // Pick the programmer, firmware and chip ID out of minipro's chatter.
+    private func noteHardware(_ raw: String) {
+        let line = raw.trimmingCharacters(in: .whitespaces)
+        if line.contains("No programmer found") {
+            programmerMissing = true
+            programmerModel = nil
+            programmerFirmware = nil
+            return
+        }
+        // "Found T48 00.1.35 (0x123)" / "Found TL866II+ 04.2.132 (0x284)"
+        if line.hasPrefix("Found ") {
+            var parts = line.dropFirst(6).split(separator: " ").map(String.init)
+            if parts.count >= 3, parts[parts.count - 1].hasPrefix("(0x") {
+                parts.removeLast()
+                let fw = parts.removeLast()
+                programmerModel = parts.joined(separator: " ")
+                programmerFirmware = fw
+                programmerMissing = false
+            }
+            return
+        }
+        // "minipro -k" prints e.g. "t48: T48"
+        if checkingProgrammer {
+            let kParts = line.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+            if kParts.count == 2, !kParts[0].isEmpty, !kParts[0].contains(" "), !kParts[1].isEmpty {
+                if programmerModel != kParts[1] { programmerFirmware = nil }
+                programmerModel = kParts[1]
+                programmerMissing = false
+                return
+            }
+        }
+        // "Chip ID: 0x15E10A  OK"
+        if line.hasPrefix("Chip ID:"), line.hasSuffix("OK"), let dev = currentDevice {
+            let id = line.dropFirst(8).trimmingCharacters(in: .whitespaces)
+                .components(separatedBy: "  ").first ?? ""
+            if !id.isEmpty { lastChipID = ChipIDResult(device: dev, id: id) }
         }
     }
 

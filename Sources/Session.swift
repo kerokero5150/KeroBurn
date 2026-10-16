@@ -227,6 +227,14 @@ final class Session: ObservableObject {
                 ActivityLog.record(kind: kind, ok: ok, preset: p, file: file, size: nil,
                                    tail: ok ? [] : Array(output.suffix(8)))
             }
+            // minipro -k exits 0 even when nothing is plugged in.
+            if kind == .programmer, output.contains(where: { $0.contains("No programmer found") }) {
+                let msg: String = "No programmer found. Check the USB cable and that it's powered."
+                self.outcome = .failure(msg)
+                self.runner.append(.error, msg)
+                Sounds.failure()
+                return
+            }
             // Some parts have no ID in minipro's database (PLDs, AT28C16, many EPROMs).
             // minipro exits 1 there, but nothing is wrong with the chip.
             if !ok, kind == .chipID, output.contains(where: { $0.contains("doesn't have a chip ID") }) {

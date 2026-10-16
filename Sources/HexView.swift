@@ -165,6 +165,7 @@ final class HexModel: ObservableObject {
 struct HexViewer: View {
     let preset: Preset
     let initialFile: URL?
+    var readOnOpen = false
 
     @EnvironmentObject private var session: Session
     @EnvironmentObject private var runner: MiniproRunner
@@ -188,6 +189,7 @@ struct HexViewer: View {
         .frame(minWidth: 1020, minHeight: 680)
         .onAppear {
             if let url = initialFile { model.loadFile(url) }
+            if readOnOpen, !session.isBusy, !preset.device.isEmpty { readChip() }
         }
     }
 
@@ -199,6 +201,9 @@ struct HexViewer: View {
             Button("Read Chip") { readChip() }
                 .disabled(session.isBusy || preset.device.isEmpty)
                 .help(Text(verbatim: "Read the chip in the socket with preset " + preset.name))
+            Button("Save Chip…", action: saveChip)
+                .disabled(model.chipBytes == nil)
+                .help("Save what was read from the chip to a file")
             if runner.isRunning {
                 ProgressView().controlSize(.small)
             }
@@ -292,6 +297,25 @@ struct HexViewer: View {
                 readError = ["Read failed (exit ", String(status), "). ", tail].joined()
             }
             try? FileManager.default.removeItem(at: tmp)
+        }
+    }
+
+    private func saveChip() {
+        guard let bytes = model.chipBytes else { return }
+        let panel = NSSavePanel()
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyyMMdd-HHmmss"
+        let safeDevice = preset.device.replacingOccurrences(of: "@", with: "_")
+        panel.nameFieldStringValue = safeDevice + "_" + f.string(from: Date()) + ".bin"
+        panel.canCreateDirectories = true
+        panel.title = "Save chip contents"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try Data(bytes).write(to: url, options: .atomic)
+            runner.append(.success, "Saved " + url.lastPathComponent)
+        } catch {
+            readError = "Couldn't save: " + error.localizedDescription
         }
     }
 
