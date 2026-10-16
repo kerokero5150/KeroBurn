@@ -12,7 +12,12 @@ minipro, libusb and the device database are bundled inside the app, so you don't
 
 Open `KeroBurn-1.0.dmg` and drag KeroBurn into Applications.
 
-The app is only ad hoc signed, not notarized. The first time, right-click it and choose Open, then Open again in the dialog. After that it opens normally.
+The app is only ad hoc signed, not notarized, so macOS will refuse to open it the first time. How you get past that depends on your macOS version:
+
+- **macOS 14 Sonoma and older:** right-click the app, choose Open, then Open again in the dialog.
+- **macOS 15 Sequoia and newer:** right-click doesn't work any more. Try to open the app once, then go to System Settings → Privacy & Security, scroll down to the bottom and click "Open Anyway" next to the KeroBurn message.
+
+After that it opens normally.
 
 ## Using it
 
