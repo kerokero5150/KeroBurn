@@ -386,10 +386,16 @@ struct HexTable: View {
         }
     }
 
+    private var firstColumnTitle: String {
+        if model.fileBytes == nil && model.chipBytes != nil { return "Chip" }
+        return "File"
+    }
+
     private var header: some View {
         HStack(spacing: 0) {
             Text(verbatim: "Address ").frame(width: 70, alignment: .leading)
-            Text(verbatim: "File").frame(width: 400, alignment: .leading)
+            // With only a chip read (no file), the first column shows the chip.
+            Text(verbatim: firstColumnTitle).frame(width: 400, alignment: .leading)
             if model.comparing {
                 Text(verbatim: "Chip").frame(width: 400, alignment: .leading)
             }
@@ -414,8 +420,13 @@ struct HexRowView: View {
             Text(verbatim: String(format: "%06X", start))
                 .foregroundColor(.secondary)
                 .frame(width: 70, alignment: .leading)
-            Self.hexText(file, other: chip, start: start)
-                .frame(width: 400, alignment: .leading)
+            if file != nil {
+                Self.hexText(file, other: chip, start: start)
+                    .frame(width: 400, alignment: .leading)
+            } else {
+                Self.hexText(chip, other: nil, start: start)
+                    .frame(width: 400, alignment: .leading)
+            }
             if file != nil && chip != nil {
                 Self.hexText(chip, other: file, start: start)
                     .frame(width: 400, alignment: .leading)
