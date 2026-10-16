@@ -74,7 +74,7 @@ Every job gets one line in `~/Library/Logs/KeroBurn/KeroBurn-YYYY-MM.log`: time,
 
 ## Known issues
 
-**AT28C64B fails verify at address 0x0001.** Only the first and last byte of every 64-byte page get written. It's the T48 page-write timing, not a bad chip. Use `AT28C64B(Non-Standard)` instead, which writes one byte at a time. Slower (about 8 seconds for 8KB) but it verifies.
+**AT28C64B fails verify at address 0x0001.** Only the first and last byte of every 64-byte page get written. My chips are recycled pulls from China, so I honestly don't know yet if this is the T48's page-write timing or the chips themselves (relabeled parts are common). Either way, `AT28C64B(Non-Standard)` writes one byte at a time and verifies fine on the same chips. Slower, about 8 seconds for 8KB. If you have genuine Atmel or Microchip parts, I'd like to hear whether the normal `AT28C64B` works for you.
 
 **Firmware warnings.** minipro 0.7.4 was written against T48 firmware 0x120 and complains if yours is older or newer. My T48 shipped with 00.1.07 and most things still worked. After updating it with Xgpro on Windows it reports 00.1.39 ("newer than expected") and everything I've tried works fine. If a chip misbehaves on old firmware, update it first.
 
