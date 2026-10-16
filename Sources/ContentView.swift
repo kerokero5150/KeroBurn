@@ -458,8 +458,6 @@ struct DetailPane: View {
             HStack(spacing: 18) {
                 Toggle("Unprotect before write (-u)", isOn: $preset.unprotect)
                 Toggle("Protect after write (-P)", isOn: $preset.protectAfter)
-                Toggle("Ignore pin check", isOn: $preset.skipPinCheck)
-                    .help("When off, a pin contact test (-z) runs before every write. minipro 0.7.4 can only do this on the TL866II+.")
                 Spacer()
             }
         }

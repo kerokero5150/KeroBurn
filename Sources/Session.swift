@@ -136,7 +136,6 @@ final class Session: ObservableObject {
             if preset.noVerify { args.append("-v") }
             if preset.unprotect { args.append("-u") }
             if preset.protectAfter { args.append("-P") }
-            if !preset.skipPinCheck { args.append("-z") }
         } else {
             args += ["-m", file.url.path]
         }
