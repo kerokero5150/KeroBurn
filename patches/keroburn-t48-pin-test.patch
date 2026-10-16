@@ -23,11 +23,52 @@ diff -ru a/src/minipro.c b/src/minipro.c
  		handle->minipro_begin_transaction = t56_begin_transaction;
 diff -ru a/src/t48.c b/src/t48.c
 --- a/src/t48.c	2025-08-03 03:07:25.000000000 +0900
-+++ b/src/t48.c	2026-10-16 17:40:25.107140722 +0900
-@@ -1662,3 +1662,144 @@
++++ b/src/t48.c	2026-10-16 17:51:26.799167324 +0900
+@@ -1662,3 +1662,208 @@
  		fprintf(stderr, "\nHardware test completed successfully!\n");
  	return EXIT_SUCCESS;
  }
++
++/*
++ * Draw the ZIF socket as text, chip at the top, the way Xgpro shows it.
++ * Left column is ZIF pin 1-20 top to bottom, right column is 40-21.
++ */
++static const char *pin_mark(uint8_t st)
++{
++	switch (st) {
++	case 1: return " ok";
++	case 2: return " XX";
++	case 3: return "GND";
++	case 4: return " HI";
++	case 5: return " --";
++	default: return "  .";
++	}
++}
++
++static void t48_print_pin_map(const uint8_t *state, int d_pins)
++{
++	int half = d_pins / 2;
++	int row;
++	fprintf(stderr, "\n");
++	fprintf(stderr, "           +---\\_/---+\n");
++	for (row = 0; row < 20; row++) {
++		int lz = row + 1;
++		int rz = 40 - row;
++		if (row < half) {
++			fprintf(stderr, "  %2d  %s  |%-2d     %2d|  %s  %2d\n",
++				lz, pin_mark(state[lz]), row + 1, d_pins - row,
++				pin_mark(state[rz]), rz);
++		} else {
++			if (row == half)
++				fprintf(stderr, "           +---------+\n");
++			fprintf(stderr, "  %2d  %s               %s  %2d\n",
++				lz, pin_mark(state[lz]), pin_mark(state[rz]), rz);
++		}
++	}
++	if (half >= 20)
++		fprintf(stderr, "           +---------+\n");
++	fprintf(stderr, "  ok = good   XX = bad contact   HI = high with nothing driven\n\n");
++}
 +
 +/*
 + * Pin contact test for the T48.
@@ -143,24 +184,47 @@ diff -ru a/src/t48.c b/src/t48.c
 +		goto cleanup;
 +	}
 +
++	/* Per ZIF pin result for the drawing: 0 not under the chip, 1 ok,
++	 * 2 bad contact, 3 GND (the pin being driven), 4 high with nothing
++	 * driven, 5 under the chip but not tested */
++	uint8_t state[41];
++	memset(state, 0, sizeof(state));
++	for (i = 1; i <= 40; i++)
++		if ((int)i <= x_pin || (int)i > 40 - x_pin)
++			state[i] = 5;
++
 +	ret = EXIT_SUCCESS;
 +	for (i = 0; i < map->mask_count; i++) {
 +		int p_pin = map->mask[i];
 +		int d_pin = p_pin > x_pin ? p_pin - pno : p_pin;
 +		int is_gnd = 0;
++		if (p_pin < 1 || p_pin > 40)
++			continue;
 +		for (k = 0; k < map->gnd_count; k++)
 +			if (map->gnd_table[k] == p_pin)
 +				is_gnd = 1;
-+		if (is_gnd || p_pin < 1 || p_pin > 40)
++		if (is_gnd) {
++			state[p_pin] = 3;
 +			continue;
++		}
 +		if (base[p_pin - 1]) {
 +			fprintf(stderr, "Pin %u reads high with nothing driven (shorted to something?)\n", d_pin);
++			state[p_pin] = 4;
 +			ret = EXIT_FAILURE;
 +		} else if (!drv[p_pin - 1]) {
 +			fprintf(stderr, "Bad contact on pin:%u\n", d_pin);
++			state[p_pin] = 2;
 +			ret = EXIT_FAILURE;
++		} else {
++			state[p_pin] = 1;
 +		}
 +	}
++	for (i = 0; i < map->gnd_count; i++)
++		if (map->gnd_table[i] >= 1 && map->gnd_table[i] <= 40)
++			state[map->gnd_table[i]] = 3;
++
++	t48_print_pin_map(state, d_pins);
++
 +	if (!ret)
 +		fprintf(stderr, "Pin test passed.\n");
 +
