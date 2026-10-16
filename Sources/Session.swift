@@ -136,6 +136,7 @@ final class Session: ObservableObject {
             if preset.noVerify { args.append("-v") }
             if preset.unprotect { args.append("-u") }
             if preset.protectAfter { args.append("-P") }
+            if !preset.skipPinCheck { args.append("-z") }
         } else {
             args += ["-m", file.url.path]
         }
@@ -154,7 +155,7 @@ final class Session: ObservableObject {
                                tail: ok ? [] : Array(output.suffix(8)))
             self.activeIndex = nil
             if !ok {
-                self.finishBatch(success: false, message: "\(file.name) failed (exit \(status))")
+                self.finishBatch(success: false, message: Session.failureText(file.name, status: status, output: output))
             } else if index + 1 < self.files.count {
                 self.waitingIndex = index + 1
                 self.runner.append(.info, "Insert the chip for \(self.files[index + 1].name), then press Continue.")
@@ -186,6 +187,24 @@ final class Session: ObservableObject {
         batchKind = nil
         batchPreset = nil
         activeIndex = nil
+    }
+
+    // Turn the common minipro failures into something a person can act on.
+    static func failureText(_ name: String, status: Int32, output: [String]) -> String {
+        let joined: String = output.joined(separator: "\n")
+        if joined.contains("Bad contact on pin") {
+            return name + ": bad pin contact, reseat the chip (see the socket map in the log)"
+        }
+        if joined.contains("Overcurrent") {
+            return name + ": overcurrent, check the chip type and that it's in the right way round"
+        }
+        if joined.contains("Chip ID mismatch") || joined.contains("Invalid Chip ID") {
+            return name + ": chip ID doesn't match the preset"
+        }
+        if joined.contains("Verification failed") {
+            return name + ": verify failed"
+        }
+        return name + " failed (exit " + String(status) + ")"
     }
 
     // MARK: Single-shot commands

@@ -57,6 +57,7 @@ struct PresetEditor: View {
                     Toggle("Skip verify after write (-v)", isOn: $draft.noVerify)
                     Toggle("Unprotect before write (-u)", isOn: $draft.unprotect)
                     Toggle("Protect after write (-P)", isOn: $draft.protectAfter)
+                    Toggle("Ignore pin check", isOn: $draft.skipPinCheck)
                 }
                 .toggleStyle(.checkbox)
             }

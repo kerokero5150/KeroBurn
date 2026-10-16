@@ -15,6 +15,7 @@ struct Preset: Codable, Identifiable, Hashable {
     var noVerify = false        // -v : skip the verify pass after writing
     var unprotect = false       // -u : turn off write protection before writing (AT28C, 28F, etc.)
     var protectAfter = false    // -P : turn write protection back on after writing
+    var skipPinCheck = false    // when false, a pin contact test (-z) runs before every write
 
     init(name: String, device: String, note: String = "",
          skipSizeCheck: Bool = false, ignoreIDError: Bool = false, noVerify: Bool = false) {
@@ -38,6 +39,7 @@ struct Preset: Codable, Identifiable, Hashable {
         noVerify = try c.decodeIfPresent(Bool.self, forKey: .noVerify) ?? false
         unprotect = try c.decodeIfPresent(Bool.self, forKey: .unprotect) ?? false
         protectAfter = try c.decodeIfPresent(Bool.self, forKey: .protectAfter) ?? false
+        skipPinCheck = try c.decodeIfPresent(Bool.self, forKey: .skipPinCheck) ?? false
     }
 
     // PLDs read and write JEDEC files instead of raw binaries.
@@ -58,6 +60,8 @@ struct Preset: Codable, Identifiable, Hashable {
         Preset(name: "GAL16V8", device: "GAL16V8D"),
         Preset(name: "GAL20V8", device: "GAL20V8B"),
         Preset(name: "GAL22V10", device: "GAL22V10D"),
+        Preset(name: "ATF16V8B", device: "ATF16V8B"),
+        Preset(name: "ATF22V10C", device: "ATF22V10C"),
     ]
 }
 

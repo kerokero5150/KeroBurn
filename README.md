@@ -53,10 +53,35 @@ The other buttons are straight minipro options:
 The checkboxes are saved per preset:
 
 - Allow size mismatch (`-s`)
-- Ignore chip ID errors (`-y`)
+- Ignore ID check (`-y`)
 - Skip verify after write (`-v`)
 - Unprotect before write (`-u`), for EEPROMs with software data protection
 - Protect after write (`-P`)
+- Ignore pin check (skips the contact test below)
+
+While a job runs, the status bar shows the current step (checking pins, checking ID, erasing, writing, reading, verifying), a progress bar and how long the step has taken. minipro gives no percentage while erasing, so the bar just keeps moving there.
+
+## Pin contact test
+
+Before every write KeroBurn runs a pin contact test, the same idea as the red X's in Xgpro's "Location in Socket" picture. If a leg isn't touching, the write stops and the log shows the socket like this:
+
+```
+           +---\_/---+
+   1   ok  |1      32|   ok  40
+  ...
+  11   ok  |11     22|   XX  30
+  ...
+  16  GND  |16     17|   ok  25
+           +---------+
+```
+
+minipro 0.7.4 only has a pin test for the TL866II+, so KeroBurn ships its own for the T48 as a patch (`patches/keroburn-t48-pin-test.patch`). It puts about 3.3V on the chip's GND pin with every other pin pulled down. Each leg that really touches the socket gets pulled up through the chip's own protection diode and reads high. A leg that doesn't stays low. You can also run it on its own with the Pin Check button.
+
+A few limits:
+
+- The GND pin itself can't be tested this way, but if it isn't touching, every other pin fails too, so you'll still notice.
+- Chips with GND on ZIF pin 17 to 24 (most 40-pin parts) are skipped, the T48 can't drive those pins.
+- I've tested it on 32-pin flash so far. Other packages should work the same way, but tell me if they don't.
 
 ## Presets
 
@@ -78,7 +103,9 @@ Every job gets one line in `~/Library/Logs/KeroBurn/KeroBurn-YYYY-MM.log`: time,
 
 **Firmware warnings.** minipro 0.7.4 was written against T48 firmware 0x120 and complains if yours is older or newer. My T48 shipped with 00.1.07 and most things still worked. After updating it with Xgpro on Windows it reports 00.1.39 ("newer than expected") and everything I've tried works fine. If a chip misbehaves on old firmware, update it first.
 
-**Apple Silicon is untested on real hardware.** It builds and both slices are in the app, I just don't own an M-series Mac. If you try it, let me know.
+**Apple Silicon.** Confirmed working on an M2 Pro Mac mini by a tester. I don't own one myself, so reports are still welcome.
+
+**GALs vs ATF chips.** An Atmel ATF16V8B is pin compatible with a GAL16V8 but programs differently. Writing it with a GAL preset ends in "Overcurrent protection!". Use the ATF16V8B preset (or ATF22V10C for 22V10s).
 
 ## Building from source
 
@@ -91,7 +118,7 @@ sudo port upgrade --enforce-variants minipro +universal   # only for a universal
 PATH=/opt/local/bin:$PATH bash build.sh
 ```
 
-`build.sh` compiles both architectures, rebuilds minipro from source as a universal binary if the MacPorts one is single-arch, copies minipro, its dylibs and the XML database into the app, signs it ad hoc, and makes the .dmg. Output goes to `build/`.
+`build.sh` compiles both architectures, rebuilds minipro from source with the patches in `patches/` (and as a universal binary), copies minipro, its dylibs and the XML database into the app, signs it ad hoc, and makes the .dmg. Output goes to `build/`.
 
 Options:
 
