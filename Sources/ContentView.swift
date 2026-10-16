@@ -119,7 +119,8 @@ struct ContentView: View {
 
     @ViewBuilder private var detail: some View {
         if let id = selection, store.index(of: id) != nil {
-            DetailPane(preset: presetBinding(id), onEdit: { if let p = selectedPreset { beginEdit(p) } })
+            DetailPane(preset: presetBinding(id), onEdit: { if let p = selectedPreset { beginEdit(p) } },
+                       onUseDevice: useDevice)
         } else {
             VStack(spacing: 8) {
                 Image(systemName: "memorychip").font(.system(size: 40)).foregroundColor(.secondary)
@@ -176,6 +177,30 @@ struct ContentView: View {
         if selection == preset.id {
             selection = store.presets.indices.contains(i) ? store.presets[i].id : store.presets.last?.id
         }
+    }
+
+    // After an ID mismatch: jump to a preset for the chip that's really in the socket, or make one.
+    private func useDevice(_ device: String) {
+        session.identified = nil
+        session.outcome = nil
+        // minipro names the bare part; keep the package of the preset we came from (e.g. @PLCC32).
+        var wanted: [String] = [device]
+        if let cur = selectedPreset?.device, let at = cur.firstIndex(of: "@"), !device.contains("@") {
+            wanted.insert(device + String(cur[at...]), at: 0)
+        }
+        for w in wanted {
+            if let p = store.presets.first(where: { $0.device.caseInsensitiveCompare(w) == .orderedSame }) {
+                selection = p.id
+                return
+            }
+        }
+        if let p = store.presets.first(where: { $0.device.caseInsensitiveCompare(device) == .orderedSame }) {
+            selection = p.id
+            return
+        }
+        let p = Preset(name: PresetEditor.friendlyName(for: device), device: device)
+        store.presets.append(p)
+        selection = p.id
     }
 }
 
@@ -249,6 +274,7 @@ struct PresetRow: View {
 struct DetailPane: View {
     @Binding var preset: Preset
     let onEdit: () -> Void
+    var onUseDevice: (String) -> Void = { _ in }
 
     @EnvironmentObject private var session: Session
     @EnvironmentObject private var runner: MiniproRunner
@@ -258,9 +284,10 @@ struct DetailPane: View {
     @State private var showHex = false
     @State private var readOnOpen = false
 
-    init(preset: Binding<Preset>, onEdit: @escaping () -> Void) {
+    init(preset: Binding<Preset>, onEdit: @escaping () -> Void, onUseDevice: @escaping (String) -> Void = { _ in }) {
         _preset = preset
         self.onEdit = onEdit
+        self.onUseDevice = onUseDevice
     }
 
     private var busy: Bool { session.isBusy }
@@ -601,6 +628,10 @@ struct DetailPane: View {
                     Label(msg, systemImage: "xmark.octagon.fill")
                         .font(.title3.bold())
                         .foregroundColor(.red)
+                    if let real = session.identified {
+                        Button("Use " + real) { onUseDevice(real) }
+                            .help("Switch to a preset for this chip, or make one")
+                    }
                 }
             } else {
                 Text(" ").font(.title3)

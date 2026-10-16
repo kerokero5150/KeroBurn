@@ -39,6 +39,7 @@ final class Session: ObservableObject {
     @Published private(set) var waitingIndex: Int?   // next file, waiting for a chip swap
     @Published private(set) var batchKind: JobKind?
     @Published var outcome: Outcome?
+    @Published var identified: String?   // what minipro thinks the chip really is, after an ID mismatch
 
     private var batchPreset: Preset?
 
@@ -199,6 +200,9 @@ final class Session: ObservableObject {
             return name + ": overcurrent, check the chip type and that it's in the right way round"
         }
         if joined.contains("Chip ID mismatch") || joined.contains("Invalid Chip ID") {
+            if let m = Session.parseMismatch(output), let real = m.name {
+                return name + ": wrong chip, it reads as " + real
+            }
             return name + ": chip ID doesn't match the preset"
         }
         if joined.contains("Verification failed") {
@@ -207,11 +211,26 @@ final class Session: ObservableObject {
         return name + " failed (exit " + String(status) + ")"
     }
 
+    // "Chip ID mismatch: expected 0x01A4, got 0xBFB7 (SST39SF040)" -> ("0xBFB7", "SST39SF040")
+    static func parseMismatch(_ output: [String]) -> (got: String, name: String?)? {
+        guard let line = output.last(where: { $0.contains("Chip ID mismatch") || $0.contains("Invalid Chip ID") }),
+              let gotRange = line.range(of: "got ") else { return nil }
+        let rest = line[gotRange.upperBound...]
+        let got = rest.split(separator: " ").first.map(String.init) ?? ""
+        var name: String?
+        if let open = rest.firstIndex(of: "("), let close = rest[open...].firstIndex(of: ")") {
+            let n = rest[rest.index(after: open)..<close].trimmingCharacters(in: .whitespaces)
+            if !n.isEmpty && n.lowercased() != "unknown" { name = n }
+        }
+        return (got, name)
+    }
+
     // MARK: Single-shot commands
 
     func runSingle(_ kind: JobKind, preset: Preset?, extra: [String] = [], file: URL? = nil) {
         guard !isBusy else { return }
         outcome = nil
+        identified = nil
         var args: [String] = []
         if let p = preset, kind != .programmer {
             args += ["-p", p.device]
@@ -230,6 +249,20 @@ final class Session: ObservableObject {
             // minipro -k exits 0 even when nothing is plugged in.
             if kind == .programmer, output.contains(where: { $0.contains("No programmer found") }) {
                 let msg: String = "No programmer found. Check the USB cable and that it's powered."
+                self.outcome = .failure(msg)
+                self.runner.append(.error, msg)
+                Sounds.failure()
+                return
+            }
+            // Wrong chip in the socket: say what minipro thinks it is.
+            if !ok, kind == .chipID, let m = Session.parseMismatch(output) {
+                let msg: String
+                if let real = m.name {
+                    msg = "Wrong chip: it reads as " + real + " (ID " + m.got + ")"
+                    self.identified = real
+                } else {
+                    msg = "Chip ID " + m.got + " doesn't match, and minipro doesn't know that ID"
+                }
                 self.outcome = .failure(msg)
                 self.runner.append(.error, msg)
                 Sounds.failure()
