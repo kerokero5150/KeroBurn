@@ -26,7 +26,7 @@ Drop more than one file and they get written in order, one chip each. After ever
 
 ## Hex View
 
-![Hex View with a GAL16V8 JEDEC file loaded](docs/hex-view.png)
+![Hex View with a 2764 ROM image loaded](docs/hex-view.png)
 
 This is the part I use most. Hex View loads the file, reads the chip in the socket, and puts them side by side with every byte that doesn't match in red. Use the Diff arrows to jump between mismatches, or tick "Only rows with differences".
 
