@@ -60,7 +60,7 @@ The checkboxes are saved per preset:
 
 ## Presets
 
-Add one with the + button, or right-click an existing one and Duplicate. In the editor, type part of a name like `2732` or `20V8` and pick from the list. The list comes from the T48 / TL866II+ section of minipro's database, so a name with a green check is one your programmer will accept. An orange triangle means minipro doesn't know that name.
+Add one with the + button, or right-click an existing one and Duplicate. In the editor, type part of a name like `2732` or `2764` and pick from the list. The list comes from the T48 / TL866II+ section of minipro's database, so a name with a green check is one your programmer will accept. An orange triangle means minipro doesn't know that name.
 
 Watch out, some parts are named differently for the T48 than for the old TL866A. A29040 in PLCC32 is `A29040L@PLCC32` on the T48, for example.
 
