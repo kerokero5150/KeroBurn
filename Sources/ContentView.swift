@@ -451,13 +451,15 @@ struct DetailPane: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 18) {
                 Toggle("Allow size mismatch (-s)", isOn: $preset.skipSizeCheck)
-                Toggle("Ignore chip ID errors (-y)", isOn: $preset.ignoreIDError)
+                Toggle("Ignore ID check (-y)", isOn: $preset.ignoreIDError)
                 Toggle("Skip verify after write (-v)", isOn: $preset.noVerify)
                 Spacer()
             }
             HStack(spacing: 18) {
                 Toggle("Unprotect before write (-u)", isOn: $preset.unprotect)
                 Toggle("Protect after write (-P)", isOn: $preset.protectAfter)
+                Toggle("Ignore pin check", isOn: $preset.skipPinCheck)
+                    .help("When off, a pin contact test (-z) runs before every write. minipro 0.7.4 can only do this on the TL866II+.")
                 Spacer()
             }
         }
@@ -536,16 +538,7 @@ struct DetailPane: View {
     @ViewBuilder private var statusRow: some View {
         HStack(spacing: 10) {
             if runner.isRunning {
-                if let p = runner.progress {
-                    ProgressView(value: p).frame(width: 220)
-                    Text("\(Int(p * 100))%").font(.system(.body, design: .monospaced)).frame(width: 44, alignment: .trailing)
-                } else {
-                    ProgressView().controlSize(.small)
-                }
-                Text(runner.liveLine)
-                    .font(.system(.callout, design: .monospaced))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+                RunStatusBar()
             } else if let outcome = session.outcome {
                 switch outcome {
                 case .success(let msg):
@@ -615,5 +608,47 @@ struct DetailPane: View {
         case .success: return .green
         case .error: return .red
         }
+    }
+}
+
+// Step name, a bar (real percentage when minipro reports one, moving otherwise) and elapsed time.
+struct RunStatusBar: View {
+    @EnvironmentObject private var runner: MiniproRunner
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(verbatim: runner.phase ?? "Working")
+                .font(.headline)
+                .frame(width: 120, alignment: .leading)
+            if let p = runner.progress {
+                ProgressView(value: p)
+                    .progressViewStyle(.linear)
+                    .frame(width: 240)
+                Text(verbatim: String(Int(p * 100)) + "%")
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: 48, alignment: .trailing)
+            } else {
+                ProgressView()
+                    .progressViewStyle(.linear)
+                    .frame(width: 240)
+                Text(verbatim: "")
+                    .frame(width: 48)
+            }
+            TimelineView(.periodic(from: runner.phaseStart, by: 0.1)) { context in
+                Text(verbatim: Self.elapsed(since: runner.phaseStart, now: context.date))
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .frame(width: 60, alignment: .trailing)
+            }
+            Text(verbatim: runner.liveLine)
+                .font(.system(.callout, design: .monospaced))
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+        }
+    }
+
+    static func elapsed(since start: Date, now: Date) -> String {
+        let t = max(0, now.timeIntervalSince(start))
+        return String(format: "%.1fs", t)
     }
 }

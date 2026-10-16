@@ -53,10 +53,11 @@ struct PresetEditor: View {
             row("Options") {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle("Allow size mismatch (-s)", isOn: $draft.skipSizeCheck)
-                    Toggle("Ignore chip ID errors (-y)", isOn: $draft.ignoreIDError)
+                    Toggle("Ignore ID check (-y)", isOn: $draft.ignoreIDError)
                     Toggle("Skip verify after write (-v)", isOn: $draft.noVerify)
                     Toggle("Unprotect before write (-u)", isOn: $draft.unprotect)
                     Toggle("Protect after write (-P)", isOn: $draft.protectAfter)
+                    Toggle("Ignore pin check", isOn: $draft.skipPinCheck)
                 }
                 .toggleStyle(.checkbox)
             }

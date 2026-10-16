@@ -92,6 +92,8 @@ final class MiniproRunner: ObservableObject {
     @Published private(set) var liveLine = ""
     @Published private(set) var progress: Double?
     @Published private(set) var isRunning = false
+    @Published private(set) var phase: String?
+    @Published private(set) var phaseStart = Date()
 
     private var process: Process?
     private var pending = ""
@@ -123,6 +125,8 @@ final class MiniproRunner: ObservableObject {
         p.standardError = pipe
 
         let startIndex = lines.count
+        phase = "Starting"
+        phaseStart = Date()
         append(.command, "$ minipro " + args.map(Self.shellQuote).joined(separator: " "))
         pending = ""
 
@@ -144,6 +148,7 @@ final class MiniproRunner: ObservableObject {
                 self.process = nil
                 self.progress = nil
                 self.liveLine = ""
+                self.phase = nil
                 let produced = self.lines.suffix(from: min(startIndex, self.lines.count))
                     .filter { $0.kind == .output }.map(\.text)
                 completion(proc.terminationStatus, produced)
@@ -180,6 +185,11 @@ final class MiniproRunner: ObservableObject {
         }
         let live = Self.lastSegment(pending)
         liveLine = live
+        if let p = Self.phaseName(for: live), p != phase {
+            phase = p
+            phaseStart = Date()
+            progress = nil   // a new step starts from zero
+        }
         if let pct = Self.percent(in: live) { progress = pct }
     }
 
@@ -187,6 +197,21 @@ final class MiniproRunner: ObservableObject {
         let last = Self.lastSegment(pending)
         if !last.trimmingCharacters(in: .whitespaces).isEmpty { append(.output, last) }
         pending = ""
+    }
+
+    // Map minipro's status text to a short step name for the status bar.
+    static func phaseName(for line: String) -> String? {
+        let l = line.lowercased()
+        if l.contains("pin test") || l.contains("pin check") { return "Checking pins" }
+        if l.contains("chip id") { return "Checking ID" }
+        if l.contains("protect off") { return "Unprotecting" }
+        if l.contains("erasing") { return "Erasing" }
+        if l.contains("writing") { return "Writing" }
+        if l.contains("reading") { return "Reading" }
+        if l.contains("verif") { return "Verifying" }
+        if l.contains("blank") { return "Blank check" }
+        if l.contains("protect on") { return "Protecting" }
+        return nil
     }
 
     private static func lastSegment(_ s: String) -> String {
