@@ -74,12 +74,20 @@ say "minipro: $MINIPRO_REAL"
 "$MINIPRO_REAL" --version 2>&1 | head -n 3 || true
 MINIPRO_VERSION="$("$MINIPRO_REAL" --version 2>&1 | sed -n 's/.*minipro version \([0-9][0-9.]*\).*/\1/p' | head -n 1 || true)"
 
-# MacPorts' "+universal" rebuilds libusb as universal, but minipro's own Makefile ignores the
-# extra -arch flags, so its binary stays single-arch. If that happens, rebuild minipro from the
-# source tarball MacPorts already downloaded, as a universal binary linked to the same libusb.
+# minipro is rebuilt from source when either:
+#  - an arm64 slice is wanted but the MacPorts binary is single-arch (MacPorts' "+universal"
+#    rebuilds libusb as universal, but minipro's own Makefile ignores the extra -arch flags), or
+#  - there are KeroBurn patches for minipro in patches/ (for example the T48 pin test).
+# The build links against the same libusb, for whichever of $ARCHS that libusb has.
+PATCHES=( "$ROOT"/patches/*.patch )
+[ -e "${PATCHES[0]}" ] || PATCHES=()
 want_arm=0
 case " $ARCHS " in *" arm64 "*) want_arm=1 ;; esac
-if [ "$want_arm" = 1 ] && ! lipo -archs "$MINIPRO_REAL" 2>/dev/null | grep -qw arm64; then
+need_src=0
+if [ "$want_arm" = 1 ] && ! lipo -archs "$MINIPRO_REAL" 2>/dev/null | grep -qw arm64; then need_src=1; fi
+if [ "${#PATCHES[@]}" -gt 0 ]; then need_src=1; fi
+
+if [ "$need_src" = 1 ]; then
     TARBALL="$(ls -t /opt/local/var/macports/distfiles/minipro/minipro-*.tar.* 2>/dev/null | head -n 1 || true)"
     if [ -z "$TARBALL" ]; then
         # MacPorts installed a prebuilt archive, so there's no source on disk. Fetch the matching tag.
@@ -87,33 +95,47 @@ if [ "$want_arm" = 1 ] && ! lipo -archs "$MINIPRO_REAL" 2>/dev/null | grep -qw a
         if [ -n "$MP_VER" ]; then
             mkdir -p "$BUILD"
             TARBALL="$BUILD/minipro-$MP_VER.tar.gz"
-            say "Downloading minipro $MP_VER source"
-            if ! curl -fsSL -o "$TARBALL" "https://gitlab.com/DavidGriffith/minipro/-/archive/$MP_VER/minipro-$MP_VER.tar.gz"; then
-                rm -f "$TARBALL"; TARBALL=""
+            if [ ! -s "$TARBALL" ]; then
+                say "Downloading minipro $MP_VER source"
+                if ! curl -fsSL -o "$TARBALL" "https://gitlab.com/DavidGriffith/minipro/-/archive/$MP_VER/minipro-$MP_VER.tar.gz"; then
+                    rm -f "$TARBALL"; TARBALL=""
+                fi
             fi
         fi
     fi
     LIBUSB_ARCHS="$(lipo -archs "$PREFIX/lib/libusb-1.0.0.dylib" 2>/dev/null || true)"
-    if [ -n "$TARBALL" ] && echo "$LIBUSB_ARCHS" | grep -qw arm64; then
-        say "Building universal minipro from $(basename "$TARBALL")"
+    SRC_ARCHS=""
+    for arch in $ARCHS; do
+        if echo "$LIBUSB_ARCHS" | grep -qw "$arch"; then SRC_ARCHS="$SRC_ARCHS $arch"; fi
+    done
+    if [ -n "$TARBALL" ] && [ -n "$SRC_ARCHS" ]; then
+        say "Building minipro from $(basename "$TARBALL") for$SRC_ARCHS"
         SRC="$BUILD/minipro-src"
         rm -rf "$SRC"; mkdir -p "$SRC"
         tar -xf "$TARBALL" -C "$SRC" --strip-components 1
+        patched=1
+        for p in ${PATCHES[@]+"${PATCHES[@]}"}; do
+            say "Applying $(basename "$p")"
+            if ! patch -d "$SRC" -p1 -s < "$p"; then
+                warn "$(basename "$p") did not apply cleanly."
+                patched=0
+            fi
+        done
         ARCH_FLAGS=""
-        for arch in $ARCHS; do ARCH_FLAGS="$ARCH_FLAGS -arch $arch"; done
-        if make -C "$SRC" minipro \
+        for arch in $SRC_ARCHS; do ARCH_FLAGS="$ARCH_FLAGS -arch $arch"; done
+        if [ "$patched" = 1 ] && make -C "$SRC" minipro \
                 PREFIX="$PREFIX" \
                 CC="clang$ARCH_FLAGS -mmacosx-version-min=$MIN_MACOS" \
                 CFLAGS="-O2 -Wall" \
                 >"$BUILD/minipro-build.log" 2>&1 \
-           && lipo -archs "$SRC/minipro" | grep -qw arm64; then
+           && [ -x "$SRC/minipro" ]; then
             MINIPRO_REAL="$SRC/minipro"
-            say "Universal minipro: $(lipo -archs "$MINIPRO_REAL")"
+            say "Built minipro: $(lipo -archs "$MINIPRO_REAL")"
         else
-            warn "Universal minipro build failed, using the MacPorts binary. See build/minipro-build.log"
+            warn "minipro source build failed, using the MacPorts binary. See build/minipro-build.log"
         fi
     else
-        warn "Can't build a universal minipro (no source tarball, or libusb is not universal)."
+        warn "Can't build minipro from source (no source tarball, or libusb lacks the wanted architectures)."
     fi
 fi
 

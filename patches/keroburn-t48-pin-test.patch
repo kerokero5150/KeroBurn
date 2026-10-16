@@ -1,0 +1,181 @@
+diff -ru a/src/main.c b/src/main.c
+--- a/src/main.c	2025-08-03 03:07:25.000000000 +0900
++++ b/src/main.c	2026-10-16 17:40:25.124026040 +0900
+@@ -3129,7 +3129,7 @@
+ 	}
+ 
+ 	if (cmdopts.pincheck) {
+-		if (handle->version == MP_TL866IIPLUS && !cmdopts.icsp) {
++		if (handle->minipro_pin_test && !cmdopts.icsp) {
+ 			if (minipro_pin_test(handle)) {
+ 				minipro_end_transaction(handle);
+ 				minipro_close(handle);
+diff -ru a/src/minipro.c b/src/minipro.c
+--- a/src/minipro.c	2025-08-03 03:07:25.000000000 +0900
++++ b/src/minipro.c	2026-10-16 17:40:25.120238595 +0900
+@@ -404,6 +404,7 @@
+ 		handle->minipro_set_pin_drivers = t48_set_pin_drivers;
+ 		handle->minipro_set_voltages = t48_set_voltages;
+ 		handle->minipro_hardware_check = t48_hardware_check;
++		handle->minipro_pin_test = t48_pin_test;
+ 		break;
+ 	case MP_T56:
+ 		handle->minipro_begin_transaction = t56_begin_transaction;
+diff -ru a/src/t48.c b/src/t48.c
+--- a/src/t48.c	2025-08-03 03:07:25.000000000 +0900
++++ b/src/t48.c	2026-10-16 17:40:25.107140722 +0900
+@@ -1662,3 +1662,144 @@
+ 		fprintf(stderr, "\nHardware test completed successfully!\n");
+ 	return EXIT_SUCCESS;
+ }
++
++/*
++ * Pin contact test for the T48.
++ *
++ * The TL866II+ test uses split pull-up/pull-down banks, which the T48 does
++ * not have. Instead this applies a small positive voltage (about 3.3V, from
++ * the VCC driver) to the device's GND pin(s) while every other pin is an
++ * input with a pull-down. Inside almost any chip, CMOS or NMOS, each pin has
++ * a protection or substrate diode with its anode on GND, so every pin that
++ * really touches the ZIF contact gets pulled up to about 2.7V and reads 1.
++ * A pin with a bad contact keeps reading 0 through its pull-down.
++ *
++ * A baseline read with nothing driven is taken first. A pin that already
++ * reads 1 there is reported as stuck high instead of passed.
++ *
++ * Set MINIPRO_PINTEST_DEBUG=1 to dump the raw readings of all 40 pins.
++ */
++int t48_pin_test(minipro_handle_t *handle)
++{
++	int p_pins = 40;
++	int d_pins = handle->device->package_details.pin_count;
++	int x_pin = d_pins / 2;
++	int pno = p_pins - d_pins;
++	uint8_t base[T48_NPINS], drv[T48_NPINS], msg[64];
++	pin_driver_t pins[T48_NPINS];
++	db_data_t db_data;
++	size_t i, k;
++	int ret = EXIT_FAILURE;
++
++	if (d_pins <= 0 || d_pins > 40) {
++		fprintf(stderr, "Pin test is not supported for this package.\n");
++		return EXIT_SUCCESS;
++	}
++
++	memset(&db_data, 0, sizeof(db_data));
++	db_data.infoic_path = handle->cmdopts->infoic_path;
++	db_data.logicic_path = handle->cmdopts->logicic_path;
++	db_data.index = handle->device->pin_map;
++	pin_map_t *map = get_pin_map(&db_data);
++	if (!map)
++		return EXIT_FAILURE;
++
++	if (!map->gnd_count) {
++		fprintf(stderr, "Pin test: no GND pin known for this device, skipped.\n");
++		free(map);
++		return EXIT_SUCCESS;
++	}
++
++	/* Every GND pin must be reachable by the VCC driver */
++	memset(pins, 0, sizeof(pins));
++	for (i = 0; i < map->gnd_count; i++) {
++		uint16_t g = map->gnd_table[i];
++		int found = 0;
++		for (k = 0; k < sizeof(vcc_pins) / sizeof(vcc_pins[0]); k++)
++			if (vcc_pins[k].pin == g && g <= 40)
++				found = 1;
++		if (!found) {
++			fprintf(stderr, "Pin test is not supported for this package on the T48 (GND on ZIF pin %u).\n", g);
++			free(map);
++			return EXIT_SUCCESS;
++		}
++		pins[g - 1].vcc = 1;
++	}
++
++	/* Baseline: all inputs with pull-downs, nothing driven */
++	if (t48_reset_state(handle))
++		goto cleanup;
++	if (t48_set_input_and_pulldown(handle))
++		goto cleanup;
++	usleep(20000);
++	if (t48_get_zif_state(handle, base))
++		goto cleanup;
++
++	/* Drive about 3.3V onto the GND pin(s) */
++	int v = find_voltage(voltagemap_vcc, sizeof(voltagemap_vcc) / sizeof(float), 3.3, 0.2);
++	if (v < 0)
++		v = 19;
++	if (t48_set_vcc_voltage_and_pins(handle, v, pins, 1))
++		goto cleanup;
++	usleep(300000);
++
++	memset(msg, 0, sizeof(msg));
++	msg[0] = T48_READ_PINS;
++	if (msg_send(handle->usb_handle, msg, 8))
++		goto cleanup;
++	if (msg_recv(handle->usb_handle, msg, sizeof(msg)))
++		goto cleanup;
++	for (i = 0; i < T48_NPINS; i++)
++		drv[i] = (msg[8 + (i >> 3)] >> (i & 7)) & 1;
++	int overcurrent = msg[1];
++
++	/* Drivers off again before anything else happens */
++	t48_reset_state(handle);
++
++	if (getenv("MINIPRO_PINTEST_DEBUG")) {
++		fprintf(stderr, "ZIF pin:  ");
++		for (i = 0; i < 40; i++)
++			fprintf(stderr, "%u", (unsigned)((i + 1) % 10));
++		fprintf(stderr, "\nbaseline: ");
++		for (i = 0; i < 40; i++)
++			fprintf(stderr, "%u", base[i]);
++		fprintf(stderr, "\ndriven:   ");
++		for (i = 0; i < 40; i++)
++			fprintf(stderr, "%u", drv[i]);
++		fprintf(stderr, "\nGND pins:");
++		for (i = 0; i < map->gnd_count; i++)
++			fprintf(stderr, " %u", map->gnd_table[i]);
++		fprintf(stderr, "\n");
++	}
++
++	if (overcurrent) {
++		fprintf(stderr, "Pin test: overcurrent while driving the GND pin. Is the chip in the right way round?\n");
++		goto cleanup;
++	}
++
++	ret = EXIT_SUCCESS;
++	for (i = 0; i < map->mask_count; i++) {
++		int p_pin = map->mask[i];
++		int d_pin = p_pin > x_pin ? p_pin - pno : p_pin;
++		int is_gnd = 0;
++		for (k = 0; k < map->gnd_count; k++)
++			if (map->gnd_table[k] == p_pin)
++				is_gnd = 1;
++		if (is_gnd || p_pin < 1 || p_pin > 40)
++			continue;
++		if (base[p_pin - 1]) {
++			fprintf(stderr, "Pin %u reads high with nothing driven (shorted to something?)\n", d_pin);
++			ret = EXIT_FAILURE;
++		} else if (!drv[p_pin - 1]) {
++			fprintf(stderr, "Bad contact on pin:%u\n", d_pin);
++			ret = EXIT_FAILURE;
++		}
++	}
++	if (!ret)
++		fprintf(stderr, "Pin test passed.\n");
++
++cleanup:
++	t48_reset_state(handle);
++	free(map);
++	return ret;
++}
+diff -ru a/src/t48.h b/src/t48.h
+--- a/src/t48.h	2025-08-03 03:07:25.000000000 +0900
++++ b/src/t48.h	2026-10-16 17:40:25.115140722 +0900
+@@ -60,5 +60,6 @@
+ int t48_set_input_and_pulldown(minipro_handle_t *handle);
+ 
+ int t48_hardware_check(minipro_handle_t *handle);
++int t48_pin_test(minipro_handle_t *handle);
+ 
+ #endif
