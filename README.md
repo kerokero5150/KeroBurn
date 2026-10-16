@@ -107,7 +107,7 @@ Every job gets one line in `~/Library/Logs/KeroBurn/KeroBurn-YYYY-MM.log`: time,
 
 **GALs vs ATF chips.** An Atmel ATF16V8B is pin compatible with a GAL16V8 but programs differently. Writing it with a GAL preset ends in "Overcurrent protection!". Use the ATF16V8B preset (or ATF22V10C for 22V10s).
 
-**"Id failed" on GALs and ATFs (beta 2).** PLDs don't have a chip ID, so pressing Chip ID with a GAL or ATF preset shows a red "Id failed (exit 1)". The chip is fine. minipro just reports "This chip doesn't have a chip ID!" and exits with an error. The next beta shows a plain note instead.
+**"Id failed" on chips without an ID (beta 2).** Some parts have no chip ID in minipro's database: GALs, ATFs, the AT28C16 and many EPROMs. Pressing Chip ID on one of those shows a red "Id failed (exit 1)". The chip is fine. minipro just reports "This chip doesn't have a chip ID!" and exits with an error. The next beta shows a plain note instead.
 
 ## Building from source
 
