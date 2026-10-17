@@ -325,7 +325,8 @@ struct DetailPane: View {
         .onAppear { session.presetSelected(preset) }
         .onChange(of: preset.id) { _ in session.presetSelected(preset) }
         .sheet(isPresented: $showHex) {
-            HexViewer(preset: preset, initialFile: session.files.first?.url, readOnOpen: readOnOpen)
+            HexViewer(preset: preset, initialFile: session.files.first?.url,
+                      initialPlacement: session.files.first?.placement, readOnOpen: readOnOpen)
                 .environmentObject(session)
                 .environmentObject(runner)
         }

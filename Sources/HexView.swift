@@ -20,10 +20,16 @@ final class HexModel: ObservableObject {
 
     var comparing: Bool { fileBytes != nil && chipBytes != nil }
 
-    func loadFile(_ url: URL) {
+    private var rawFile: [UInt8]?
+    private var rawName = ""
+    private var placement: Placement?
+
+    func loadFile(_ url: URL, placement: Placement? = nil) {
         guard let data = try? Data(contentsOf: url) else { return }
-        fileBytes = [UInt8](data)
-        fileName = url.lastPathComponent
+        rawFile = [UInt8](data)
+        rawName = url.lastPathComponent
+        self.placement = (placement?.isDefault ?? true) ? nil : placement
+        rebuildFile()
         compare()
     }
 
@@ -31,7 +37,41 @@ final class HexModel: ObservableObject {
         guard let data = try? Data(contentsOf: url) else { return }
         chipBytes = [UInt8](data)
         chipName = label
+        rebuildFile()
         compare()
+    }
+
+    // With an offset set, show the file the way it will end up on the chip:
+    // placed at its address, on top of the chip (keep) or on top of blank FF.
+    private func rebuildFile() {
+        guard let raw = rawFile else { return }
+        guard let p = placement else {
+            fileBytes = raw
+            fileName = rawName
+            return
+        }
+        let start = min(Int(p.fileOffset), raw.count)
+        let len = p.length > 0 ? min(Int(p.length), raw.count - start) : raw.count - start
+        let offset = Int(p.offset)
+        guard offset + len <= 0x400_0000 else {   // nonsense offset, just show the file
+            fileBytes = raw
+            fileName = rawName
+            return
+        }
+        var base: [UInt8]
+        if let chip = chipBytes {
+            base = p.keep ? chip : [UInt8](repeating: 0xFF, count: chip.count)
+        } else {
+            base = []
+        }
+        if base.count < offset + len {
+            base += [UInt8](repeating: 0xFF, count: offset + len - base.count)
+        }
+        if len > 0 {
+            base.replaceSubrange(offset..<(offset + len), with: raw[start..<(start + len)])
+        }
+        fileBytes = base
+        fileName = rawName + " (" + p.summary + ")"
     }
 
     func clearChip() {
@@ -165,6 +205,7 @@ final class HexModel: ObservableObject {
 struct HexViewer: View {
     let preset: Preset
     let initialFile: URL?
+    var initialPlacement: Placement? = nil
     var readOnOpen = false
 
     @EnvironmentObject private var session: Session
@@ -188,7 +229,7 @@ struct HexViewer: View {
         .padding(14)
         .frame(minWidth: 1020, minHeight: 680)
         .onAppear {
-            if let url = initialFile { model.loadFile(url) }
+            if let url = initialFile { model.loadFile(url, placement: initialPlacement) }
             if readOnOpen, !session.isBusy, !preset.device.isEmpty { readChip() }
         }
     }
@@ -431,7 +472,8 @@ struct HexRowView: View {
                 Self.hexText(chip, other: file, start: start)
                     .frame(width: 400, alignment: .leading)
             }
-            Text(verbatim: Self.ascii(file ?? chip, start: start))
+            // Past the end of a short file, show the chip's text instead of nothing.
+            Text(verbatim: Self.ascii((file?.count ?? 0) > start ? file : chip, start: start))
                 .foregroundColor(.secondary)
         }
         .font(.system(size: 11.5, design: .monospaced))
@@ -462,7 +504,7 @@ struct HexRowView: View {
     }
 
     static func ascii(_ bytes: [UInt8]?, start: Int) -> String {
-        guard let b = bytes else { return "" }
+        guard let b = bytes, start < b.count else { return "" }
         var s = ""
         for idx in start..<min(start + 16, b.count) {
             let v = b[idx]
