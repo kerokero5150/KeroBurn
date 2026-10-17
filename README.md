@@ -56,7 +56,7 @@ minipro -p SST39SF040 -m patch.bin --offset 0x1000
 
 ## Hex View
 
-![Hex View with a 2764 ROM image loaded](docs/hex-view.png)
+![Hex View with a 512 KB Mac SE ROM HI image loaded](docs/hex-view.png)
 
 This is the part I use most. Hex View loads the file, reads the chip in the socket, and puts them side by side with every byte that doesn't match in red. Use the Diff arrows to jump between mismatches, or tick "Only rows with differences".
 
