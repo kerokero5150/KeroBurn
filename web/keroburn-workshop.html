@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>KeroBurn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&display=swap">
+<style>
+:root{
+  --desk:#000;--desk-ink:#f1f1ec;--desk-muted:#9c9c95;
+  --paper:#fff;--ink:#000;--muted:#5a5d61;--line:#000;--accent:#1f6f5c;
+  --font-display:"Silkscreen","Courier New",monospace;
+  --font-body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--desk);color:var(--desk-ink);font-family:var(--font-body);font-size:15px;line-height:1.55}
+img{max-width:100%;display:block}
+a{color:inherit}
+.wrap{max-width:1060px;margin:0 auto;padding:24px 16px 40px;display:flex;flex-direction:column;gap:22px}
+
+header{display:flex;align-items:center;gap:16px}
+.icon{flex:none;width:72px;height:72px;border-radius:16px}
+header h1{font-family:var(--font-display);font-weight:400;font-size:22px;margin:0;letter-spacing:.12em;text-transform:uppercase}
+header p{margin:4px 0 0;color:var(--desk-muted);max-width:62ch}
+.tag{display:inline-block;font:500 11px var(--font-mono);border:1px solid var(--desk-muted);color:var(--desk-muted);padding:1px 6px;margin-left:6px;vertical-align:3px;letter-spacing:.04em}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:minmax(0,1fr)}}
+.col{display:flex;flex-direction:column;gap:20px;min-width:0}
+
+.win{background:var(--paper);color:var(--ink);border:1.5px solid var(--line);box-shadow:0 0 0 1px var(--desk-muted),3px 3px 0 1px var(--desk-muted);min-width:0;color-scheme:light}
+.win>h2{font-family:var(--font-display);font-weight:400;font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:0;padding:5px 10px;border-bottom:1.5px solid var(--line);text-align:center;background:repeating-linear-gradient(to bottom,var(--line) 0 1px,transparent 1px 3px) center/calc(100% - 16px) 11px no-repeat}
+.win>h2 span{background:var(--paper);padding:0 8px}
+.body{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.body p{margin:0}
+.muted{color:var(--muted);font-size:13.5px}
+.shot{border:1.5px solid var(--line)}
+figure{margin:0;display:flex;flex-direction:column;gap:6px}
+figcaption{font-size:12.5px;color:var(--muted)}
+
+ul.feat{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+ul.feat li{padding-left:18px;position:relative}
+ul.feat li::before{content:"";position:absolute;left:2px;top:.62em;width:7px;height:7px;background:var(--ink)}
+ul.feat b{font-weight:600}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;font:600 14px var(--font-body);text-decoration:none;color:var(--ink);background:var(--paper);border:1.5px solid var(--line);border-radius:7px;padding:9px 14px;min-height:40px}
+.btn:hover{background:var(--ink);color:var(--paper)}
+.btn.primary{background:var(--ink);color:var(--paper)}
+.btn.primary:hover{background:var(--paper);color:var(--ink)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13.5px}
+dt{color:var(--muted)}
+dd{margin:0}
+ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13.5px}
+code{font:13px var(--font-mono);background:#eee;padding:0 4px}
+
+.thumbs{align-items:start;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+footer{color:var(--desk-muted);font-size:12.5px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <img class="icon" src="https://raw.githubusercontent.com/kerokero5150/KeroBurn/main/Assets/AppIcon.png" alt="KeroBurn app icon">
+    <div>
+      <h1>KeroBurn <span class="tag">beta</span></h1>
+      <p>A free Mac app for XGecu T48 and TL866II+ chip programmers. Pick a chip, drop a file, hit Write. No Windows, no Terminal.</p>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+
+      <section class="win">
+        <h2><span>KeroBurn</span></h2>
+        <div class="body">
+          <img class="shot" src="https://raw.githubusercontent.com/kerokero5150/KeroBurn/main/docs/main-window.png" alt="KeroBurn main window with a list of chip presets">
+          <p>I flash the same handful of chips over and over for our Mac parts (39SF040, 29F040, 28C64, GALs), and I got tired of booting Windows for Xgpro or looking up minipro device names in Terminal. So I wrapped minipro in a proper Mac app.</p>
+          <p class="muted">KeroBurn runs <a href="https://gitlab.com/DavidGriffith/minipro">minipro</a>, the open source driver for XGecu programmers, and ships with its own copy, so there's nothing else to install.</p>
+        </div>
+      </section>
+
+      <section class="win">
+        <h2><span>What it does</span></h2>
+        <div class="body">
+          <ul class="feat">
+            <li><b>Presets.</b> Save the chips you use all the time, with their options, an emoji icon, and even the files to flash. Pick the preset and the files are already loaded.</li>
+            <li><b>HI/LO pairs and SIMM sets.</b> Drop two or four files and KeroBurn flashes them one after another, asking you to swap chips in between.</li>
+            <li><b>Pin check before every write.</b> If a leg isn't touching, it stops and shows you which one in a drawing of the socket. Works on the T48 too.</li>
+            <li><b>Hex View.</b> File and chip side by side, differences in red. It also spots shifted addresses, HI/LO mix-ups and blank chips.</li>
+            <li><b>Wrong chip detection.</b> If the chip ID doesn't match, it tells you what the chip really is. Handy for parts with a sticker over the number.</li>
+            <li><b>Write at an address.</b> Change just part of a ROM: give a small patch file an address, keep the rest of the chip, and only that range changes.</li>
+            <li><b>Activity log.</b> One line per job with the file name and SHA-256, so you can check later which image went on which chip.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="win">
+        <h2><span>Screenshots</span></h2>
+        <div class="body">
+          <div class="thumbs">
+            <figure><a href="https://raw.githubusercontent.com/kerokero5150/KeroBurn/main/docs/hex-view.png" target="_blank" rel="noopener"><img class="shot" src="https://raw.githubusercontent.com/kerokero5150/KeroBurn/main/docs/hex-view.png" alt="Hex View showing a ROM image"></a><figcaption>Hex View</figcaption></figure>
+            <figure><a href="https://raw.githubusercontent.com/kerokero5150/KeroBurn/main/docs/pin-check-fail.png" target="_blank" rel="noopener"><img class="shot" src="https://raw.githubusercontent.com/kerokero5150/KeroBurn/main/docs/pin-check-fail.png" alt="Pin check marking pin 11 as bad contact"></a><figcaption>Pin check catching a lifted pin</figcaption></figure>
+            <figure><a href="https://raw.githubusercontent.com/kerokero5150/KeroBurn/main/docs/chip-id-wrong.png" target="_blank" rel="noopener"><img class="shot" src="https://raw.githubusercontent.com/kerokero5150/KeroBurn/main/docs/chip-id-wrong.png" alt="Chip ID saying the chip reads as A29040"></a><figcaption>Wrong chip in the socket</figcaption></figure>
+            <figure><a href="https://raw.githubusercontent.com/kerokero5150/KeroBurn/main/docs/offset.png" target="_blank" rel="noopener"><img class="shot" src="https://raw.githubusercontent.com/kerokero5150/KeroBurn/main/docs/offset.png" alt="Offset settings for writing a file at an address"></a><figcaption>Writing at an address</figcaption></figure>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <aside class="col">
+
+      <section class="win">
+        <h2><span>Download</span></h2>
+        <div class="body">
+          <a class="btn primary" href="https://github.com/kerokero5150/KeroBurn/releases/latest" target="_blank" rel="noopener">Download latest version</a>
+          <a class="btn" href="https://github.com/kerokero5150/KeroBurn" target="_blank" rel="noopener">Project page on GitHub</a>
+          <p class="muted">Free and open source (GPLv3). The download link always points to the newest release, look for the .dmg file.</p>
+        </div>
+      </section>
+
+      <section class="win">
+        <h2><span>Requirements</span></h2>
+        <div class="body">
+          <dl>
+            <dt>Mac</dt><dd>macOS 12 or later, Intel or Apple Silicon</dd>
+            <dt>Programmer</dt><dd>XGecu T48 or TL866II+ (T56 and TL866A/CS through minipro)</dd>
+            <dt>Chips</dt><dd>Whatever minipro supports, over 27,000 parts</dd>
+          </dl>
+        </div>
+      </section>
+
+      <section class="win">
+        <h2><span>First launch</span></h2>
+        <div class="body">
+          <p class="muted">The app isn't notarized yet, so macOS stops it the first time.</p>
+          <ol>
+            <li><b>macOS 14 and older:</b> right-click KeroBurn, choose Open, then Open again.</li>
+            <li><b>macOS 15 and newer:</b> try to open it once, then go to System Settings &rsaquo; Privacy &amp; Security and click <i>Open Anyway</i>.</li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="win">
+        <h2><span>Feedback</span></h2>
+        <div class="body">
+          <p class="muted">It's still in beta. Bug reports and ideas are very welcome, either on <a href="https://github.com/kerokero5150/KeroBurn/issues" target="_blank" rel="noopener">GitHub</a> or through the Inquiry page.</p>
+        </div>
+      </section>
+
+    </aside>
+  </div>
+
+  <footer>KeroBurn by Kero's Mac Mods. minipro by Valentin Dudouyt, David Griffith and contributors.</footer>
+</div>
+</body>
+</html>
