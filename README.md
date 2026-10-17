@@ -35,6 +35,9 @@ Under the preset name you'll see which programmer is connected and its firmware,
 
 Every file in the list has an **Offset…** button. It's the same idea as the file load dialog in Xgpro:
 
+![The Offset popover: chip address 0x2000, 0x10 bytes from 0x10 in the file, keep the rest of the chip](docs/offset.png)
+
+
 - **Chip address**: where on the chip the file goes
 - **Start in file** and **Length**: use only part of the file (leave them empty for the whole file)
 - **Keep what's already on the chip**: the chip is read first and only that range changes
