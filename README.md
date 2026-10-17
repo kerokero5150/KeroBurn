@@ -86,6 +86,9 @@ The other buttons are straight minipro options:
 
 The checkboxes are saved per preset:
 
+![The option checkboxes under the file list](docs/options.png)
+
+
 - Allow size mismatch (`-s`)
 - Ignore ID check (`-y`)
 - Skip verify after write (`-v`)
