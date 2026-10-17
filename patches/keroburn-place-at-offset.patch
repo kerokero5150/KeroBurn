@@ -1,0 +1,225 @@
+diff --git a/src/main.c b/src/main.c
+index 90f941f..fe21220 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -215,6 +215,10 @@ static struct option long_options[] = {
+ 	{ "hardware_check", no_argument, NULL, 't' },
+ 	{ "update", required_argument, NULL, 'F' },
+ 	{ "help", no_argument, NULL, 'h' },
++	{ "offset", required_argument, NULL, 7 },
++	{ "file_offset", required_argument, NULL, 8 },
++	{ "length", required_argument, NULL, 9 },
++	{ "keep", no_argument, NULL, 10 },
+ 	{ NULL, 0, NULL, 0 }
+ };
+ 
+@@ -888,6 +892,22 @@ void parse_cmdline(int argc, char **argv, cmdopts_t *cmdopts)
+ 		case 6:
+ 			cmdopts->algo_path = optarg; /* Custom algorithm.xml */
+ 			break;
++		case 7: /* Chip address to place the file at */
++			cmdopts->place_offset = strtoul(optarg, NULL, 0);
++			cmdopts->place = 1;
++			break;
++		case 8: /* Where in the file to start */
++			cmdopts->place_file_offset = strtoul(optarg, NULL, 0);
++			cmdopts->place = 1;
++			break;
++		case 9: /* How many bytes of the file to use */
++			cmdopts->place_length = strtoul(optarg, NULL, 0);
++			cmdopts->place = 1;
++			break;
++		case 10: /* Keep what's on the chip outside the placed range */
++			cmdopts->keep = 1;
++			cmdopts->place = 1;
++			break;
+ 		case 'q':
+ 			if (!strcasecmp(optarg, "tl866a"))
+ 				cmdopts->version = MP_TL866A;
+@@ -1727,10 +1747,80 @@ FILE *get_file(minipro_handle_t *handle)
+ }
+ 
+ /* Wrappers for operating with files */
++/*
++ * --offset / --file_offset / --length / --keep
++ *
++ * Copy part of a raw binary file into buf (the chip image, size bytes) at
++ * place_offset. Without --keep the rest of buf stays at the blank value,
++ * with --keep the caller has already filled buf with the chip contents.
++ * Only plain binary files are accepted; hex and srec carry their own
++ * addresses.
++ */
++static int place_file(minipro_handle_t *handle, uint8_t *buf, size_t size,
++		      size_t *start, size_t *length)
++{
++	cmdopts_t *o = handle->cmdopts;
++	struct stat st;
++	FILE *file;
++
++	if (o->is_pipe) {
++		fprintf(stderr, "--offset/--keep can't be used with a pipe.\n");
++		return EXIT_FAILURE;
++	}
++	if (o->format != NO_FORMAT) {
++		fprintf(stderr, "--offset/--keep only work with binary files.\n");
++		return EXIT_FAILURE;
++	}
++	file = fopen(o->filename, "rb");
++	if (!file || stat(o->filename, &st)) {
++		fprintf(stderr, "Could not open file %s for reading.\n",
++			o->filename);
++		if (file)
++			fclose(file);
++		return EXIT_FAILURE;
++	}
++	size_t fsize = st.st_size;
++	if (o->place_file_offset >= fsize) {
++		fprintf(stderr,
++			"File offset 0x%X is past the end of the file (%zu bytes).\n",
++			o->place_file_offset, fsize);
++		fclose(file);
++		return EXIT_FAILURE;
++	}
++	size_t len = o->place_length ? o->place_length :
++				       fsize - o->place_file_offset;
++	if (o->place_file_offset + len > fsize) {
++		fprintf(stderr,
++			"File is too short: 0x%zX bytes from 0x%X needed, file has %zu bytes.\n",
++			len, o->place_file_offset, fsize);
++		fclose(file);
++		return EXIT_FAILURE;
++	}
++	if (o->place_offset + len > size) {
++		fprintf(stderr,
++			"Doesn't fit: 0x%zX bytes at 0x%X goes past the end of the chip (0x%zX).\n",
++			len, o->place_offset, size);
++		fclose(file);
++		return EXIT_FAILURE;
++	}
++	if (fseek(file, o->place_file_offset, SEEK_SET) ||
++	    fread(buf + o->place_offset, 1, len, file) != len) {
++		fprintf(stderr, "Could not read %s.\n", o->filename);
++		fclose(file);
++		return EXIT_FAILURE;
++	}
++	fclose(file);
++	*start = o->place_offset;
++	*length = len;
++	return EXIT_SUCCESS;
++}
++
+ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size)
+ {
+-	/* Allocate the buffer and clear it with default value */
+-	uint8_t *file_data = malloc(size);
++	/* Allocate the buffer and clear it with default value.
++	 * A few spare bytes because read_page_ram may be used on it
++	 * (see the T56 note below). */
++	uint8_t *file_data = malloc(size + 16);
+ 	if (!file_data) {
+ 		fprintf(stderr, "Out of memory!\n");
+ 		return EXIT_FAILURE;
+@@ -1738,7 +1828,52 @@ int write_page_file(minipro_handle_t *handle, uint8_t type, size_t size)
+ 
+ 	memset(file_data, handle->device->blank_value, size);
+ 	size_t file_size = size;
+-	if (open_file(handle, file_data, &file_size))
++	if (handle->cmdopts->place && type == MP_CODE) {
++		size_t start = 0, len = 0;
++		uint8_t *before = NULL;
++		if (handle->cmdopts->keep) {
++			fprintf(stderr, "Reading the chip to keep its contents... ");
++			fflush(stderr);
++			if (read_page_ram(handle, file_data, type, size)) {
++				free(file_data);
++				return EXIT_FAILURE;
++			}
++			fprintf(stderr, "OK\n");
++			/* Chips we can't erase (UV EPROMs) can only turn 1s into 0s */
++			if (!handle->device->flags.can_erase ||
++			    handle->cmdopts->no_erase) {
++				before = malloc(size);
++				if (!before) {
++					free(file_data);
++					fprintf(stderr, "Out of memory!\n");
++					return EXIT_FAILURE;
++				}
++				memcpy(before, file_data, size);
++			}
++		}
++		if (place_file(handle, file_data, size, &start, &len)) {
++			free(before);
++			free(file_data);
++			return EXIT_FAILURE;
++		}
++		if (before) {
++			for (size_t i = start; i < start + len; i++) {
++				if (file_data[i] & ~before[i]) {
++					fprintf(stderr,
++						"Address 0x%06zX needs bits changed from 0 to 1 "
++						"(chip 0x%02X, file 0x%02X). Erase the chip first.\n",
++						i, before[i], file_data[i]);
++					free(before);
++					free(file_data);
++					return EXIT_FAILURE;
++				}
++			}
++			free(before);
++		}
++		fprintf(stderr, "Placing 0x%zX bytes at 0x%06zX-0x%06zX%s\n", len,
++			start, start + len - 1,
++			handle->cmdopts->keep ? ", keeping the rest" : "");
++	} else if (open_file(handle, file_data, &file_size))
+ 		return EXIT_FAILURE;
+ 	if (file_size != size) {
+ 		if (!handle->cmdopts->size_error) {
+@@ -1928,7 +2063,31 @@ int verify_page_file(minipro_handle_t *handle, uint8_t type, size_t size)
+ 		fprintf(stderr, "Out of memory!\n");
+ 		return EXIT_FAILURE;
+ 	}
+-	if (handle->cmdopts->filename) {
++	if (handle->cmdopts->filename && handle->cmdopts->place &&
++	    type == MP_CODE) {
++		/* Compare only the placed range: start from the chip itself
++		 * and drop the file in, so everything else matches. */
++		uint8_t *chip = malloc(size + 128);
++		size_t start = 0, len = 0;
++		if (!chip) {
++			free(file_data);
++			fprintf(stderr, "Out of memory!\n");
++			return EXIT_FAILURE;
++		}
++		if (read_page_ram(handle, chip, type, size)) {
++			free(chip);
++			free(file_data);
++			return EXIT_FAILURE;
++		}
++		memcpy(file_data, chip, size);
++		free(chip);
++		if (place_file(handle, file_data, size, &start, &len)) {
++			free(file_data);
++			return EXIT_FAILURE;
++		}
++		fprintf(stderr, "Verifying 0x%06zX-0x%06zX only\n", start,
++			start + len - 1);
++	} else if (handle->cmdopts->filename) {
+ 		memset(file_data, handle->device->blank_value, size);
+ 		if (open_file(handle, file_data, &file_size)) {
+ 			free(file_data);
+diff --git a/src/minipro.h b/src/minipro.h
+index 5c0e7e7..47576c2 100644
+--- a/src/minipro.h
++++ b/src/minipro.h
+@@ -261,6 +261,12 @@ typedef struct cmdopts_s {
+ 	uint8_t is_pipe;
+ 	uint8_t version;
+ 	uint8_t force_erase;
++	/* Place the file at an address instead of writing it from 0 */
++	uint8_t place;
++	uint8_t keep;
++	uint32_t place_offset;
++	uint32_t place_file_offset;
++	uint32_t place_length;
+ 	int filter_fuses;
+ 	int filter_locks;
+ 	int filter_uid;
