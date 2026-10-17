@@ -283,6 +283,7 @@ struct DetailPane: View {
     @State private var dropTargeted = false
     @State private var showHex = false
     @State private var readOnOpen = false
+    @State private var placementTarget: UUID?
 
     init(preset: Binding<Preset>, onEdit: @escaping () -> Void, onUseDevice: @escaping (String) -> Void = { _ in }) {
         _preset = preset
@@ -321,6 +322,8 @@ struct DetailPane: View {
             logBox
         }
         .padding(18)
+        .onAppear { session.presetSelected(preset) }
+        .onChange(of: preset.id) { _ in session.presetSelected(preset) }
         .sheet(isPresented: $showHex) {
             HexViewer(preset: preset, initialFile: session.files.first?.url, readOnOpen: readOnOpen)
                 .environmentObject(session)
@@ -414,6 +417,17 @@ struct DetailPane: View {
                 .foregroundColor(.secondary)
                 .font(.caption)
             Spacer()
+            if !preset.files.isEmpty && session.loadedFrom == preset.id {
+                Label("From preset", systemImage: "bookmark.fill")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Button("Save to Preset") {
+                preset.files = session.savedFiles
+                session.markSaved(to: preset)
+            }
+            .disabled(busy || session.files.isEmpty || session.loadedFrom == preset.id)
+            .help("Remember these files (and their offsets) so this preset loads them by itself")
             Button("Add…", action: openFiles)
             Button("Sort by Name") { session.sortByName() }
                 .disabled(busy || session.files.count < 2)
@@ -459,11 +473,28 @@ struct DetailPane: View {
             Text("#\(index + 1)")
                 .font(.system(.body, design: .monospaced))
                 .foregroundColor(.secondary)
-            Text(file.name)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .help(file.url.path)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(file.name)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(file.url.path)
+                fileDetail(file)
+            }
             Spacer()
+            if !preset.isLogicDevice {
+                Button(placementLabel(file)) { placementTarget = file.id }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .disabled(busy)
+                    .help("Write this file at an address instead of from 0")
+                    .popover(isPresented: placementBinding(file.id), arrowEdge: .bottom) {
+                        PlacementEditor(fileName: file.name, fileSize: file.size,
+                                        placement: file.placement ?? Placement()) { p in
+                            session.setPlacement(file.id, p)
+                            placementTarget = nil
+                        }
+                    }
+            }
             Text(ByteCountFormatter.string(fromByteCount: file.size, countStyle: .binary))
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -481,6 +512,42 @@ struct DetailPane: View {
         .padding(.vertical, 5)
         .padding(.horizontal, 8)
         .background(highlighted ? Color.accentColor.opacity(0.15) : Color.clear)
+    }
+
+    @ViewBuilder private func fileDetail(_ file: QueuedFile) -> some View {
+        if !file.exists {
+            Label("Not found, moved or renamed?", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundColor(.orange)
+        } else {
+            HStack(spacing: 8) {
+                if let d = file.modified {
+                    Text(verbatim: "Modified " + Self.dateText.string(from: d))
+                }
+                if let p = file.placement {
+                    Text(verbatim: p.summary).foregroundColor(.accentColor)
+                }
+            }
+            .font(.caption)
+            .foregroundColor(.secondary)
+        }
+    }
+
+    private static let dateText: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .short
+        f.timeStyle = .short
+        return f
+    }()
+
+    private func placementLabel(_ file: QueuedFile) -> String {
+        if file.placement != nil { return "Offset ✓" }
+        return "Offset…"
+    }
+
+    private func placementBinding(_ id: UUID) -> Binding<Bool> {
+        Binding(get: { placementTarget == id },
+                set: { if !$0 { placementTarget = nil } })
     }
 
     @ViewBuilder private func statusIcon(_ status: QueuedFile.Status) -> some View {

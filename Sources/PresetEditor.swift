@@ -62,6 +62,38 @@ struct PresetEditor: View {
                 TextField("Optional, e.g. which board this is for", text: $draft.note)
             }
 
+            if !draft.files.isEmpty {
+                row("Files") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(draft.files.enumerated()), id: \.offset) { i, f in
+                            HStack(spacing: 6) {
+                                Text(verbatim: URL(fileURLWithPath: f.path).lastPathComponent)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .help(f.path)
+                                if let p = f.placement {
+                                    Text(verbatim: p.summary).font(.caption).foregroundColor(.secondary)
+                                }
+                                if !FileManager.default.fileExists(atPath: f.path) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.orange)
+                                        .help("File not found")
+                                }
+                                Spacer()
+                                Button { draft.files.remove(at: i) } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                }
+                                .buttonStyle(.borderless)
+                                .foregroundColor(.secondary)
+                            }
+                        }
+                        Text("Loaded by themselves when you pick this preset. Change them with Save to Preset on the main screen.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
             row("Options") {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle("Allow size mismatch (-s)", isOn: $draft.skipSizeCheck)

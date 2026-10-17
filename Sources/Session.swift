@@ -7,10 +7,28 @@ struct QueuedFile: Identifiable, Equatable {
 
     let id = UUID()
     let url: URL
-    let size: Int64
+    var size: Int64
     var status: Status = .pending
+    var placement: Placement?
+    var modified: Date?
+    var exists = true
 
     var name: String { url.lastPathComponent }
+
+    init(url: URL, placement: Placement? = nil) {
+        self.url = url
+        self.placement = placement
+        self.size = 0
+        refresh()
+    }
+
+    // Re-read size, date and whether the file is still there.
+    mutating func refresh() {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+        exists = attrs != nil
+        size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
+        modified = attrs?[.modificationDate] as? Date
+    }
 }
 
 enum JobKind: String {
@@ -40,6 +58,7 @@ final class Session: ObservableObject {
     @Published private(set) var batchKind: JobKind?
     @Published var outcome: Outcome?
     @Published var identified: String?   // what minipro thinks the chip really is, after an ID mismatch
+    @Published private(set) var loadedFrom: UUID?  // preset whose saved files are in the queue
 
     private var batchPreset: Preset?
 
@@ -54,12 +73,48 @@ final class Session: ObservableObject {
             var isDir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: u.path, isDirectory: &isDir), !isDir.boolValue,
                   !known.contains(u) else { continue }
-            let size = (try? FileManager.default.attributesOfItem(atPath: u.path)[.size] as? NSNumber)?.int64Value ?? 0
-            files.append(QueuedFile(url: u, size: size))
+            files.append(QueuedFile(url: u))
         }
+        loadedFrom = nil
         sortByName()
         resetStatuses()
     }
+
+    // MARK: Files remembered by presets
+
+    // Called when the selected preset changes. Saved files replace the queue only
+    // if it's empty or was itself loaded from a preset, so dropped files are never lost.
+    func presetSelected(_ preset: Preset) {
+        guard !isBusy else { return }
+        guard files.isEmpty || loadedFrom != nil else { return }
+        if preset.files.isEmpty {
+            if loadedFrom != nil { files.removeAll(); loadedFrom = nil; outcome = nil }
+            return
+        }
+        files = preset.files.map { QueuedFile(url: URL(fileURLWithPath: $0.path), placement: $0.placement) }
+        loadedFrom = preset.id
+        outcome = nil
+    }
+
+    var savedFiles: [SavedFile] {
+        files.map { SavedFile(path: $0.url.path, placement: $0.placement) }
+    }
+
+    func markSaved(to preset: Preset) { loadedFrom = preset.id }
+
+    func setPlacement(_ id: UUID, _ p: Placement?) {
+        guard !isBusy, let i = files.firstIndex(where: { $0.id == id }) else { return }
+        let newValue: Placement? = (p?.isDefault ?? true) ? nil : p
+        if files[i].placement == newValue { return }
+        files[i].placement = newValue
+        loadedFrom = nil   // edited by hand now, don't throw it away on a preset switch
+    }
+
+    func refreshFiles() {
+        for i in files.indices { files[i].refresh() }
+    }
+
+    var missingFiles: [QueuedFile] { files.filter { !$0.exists } }
 
     func sortByName() {
         files.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
@@ -68,6 +123,7 @@ final class Session: ObservableObject {
     func remove(_ id: UUID) {
         guard !isBusy else { return }
         files.removeAll { $0.id == id }
+        loadedFrom = nil
     }
 
     func move(_ id: UUID, by delta: Int) {
@@ -75,11 +131,13 @@ final class Session: ObservableObject {
         let j = i + delta
         guard files.indices.contains(j) else { return }
         files.swapAt(i, j)
+        loadedFrom = nil
     }
 
     func clearFiles() {
         guard !isBusy else { return }
         files.removeAll()
+        loadedFrom = nil
         outcome = nil
     }
 
@@ -92,6 +150,13 @@ final class Session: ObservableObject {
 
     func startBatch(_ kind: JobKind, preset: Preset) {
         guard !isBusy, !files.isEmpty, kind == .write || kind == .verify else { return }
+        refreshFiles()
+        if let gone = missingFiles.first {
+            outcome = .failure(gone.name + " isn't there any more. Was it moved or renamed?")
+            runner.append(.error, "Missing file: " + gone.url.path)
+            Sounds.failure()
+            return
+        }
         resetStatuses()
         outcome = nil
         batchKind = kind
@@ -141,6 +206,7 @@ final class Session: ObservableObject {
         } else {
             args += ["-m", file.url.path]
         }
+        if let p = file.placement, !preset.isLogicDevice { args += p.args }
         if preset.skipSizeCheck { args.append("-s") }
         if preset.ignoreIDError { args.append("-y") }
 
@@ -152,7 +218,7 @@ final class Session: ObservableObject {
             if self.files.indices.contains(index) {
                 self.files[index].status = ok ? .ok : .failed
             }
-            ActivityLog.record(kind: kind, ok: ok, preset: preset, file: file.url, size: file.size,
+            ActivityLog.record(kind: kind, ok: ok, preset: preset, file: file.url, size: file.size, placement: file.placement,
                                tail: ok ? [] : Array(output.suffix(8)))
             self.activeIndex = nil
             if !ok {
@@ -329,7 +395,8 @@ enum ActivityLog {
         return f
     }()
 
-    static func record(kind: JobKind, ok: Bool, preset: Preset, file: URL?, size: Int64?, tail: [String]) {
+    static func record(kind: JobKind, ok: Bool, preset: Preset, file: URL?, size: Int64?,
+                       placement: Placement? = nil, tail: [String]) {
         let now = Date()
         let okText: String = ok ? "OK" : "FAIL"
         var line: String = "[" + stampFormatter.string(from: now) + "] " + kind.rawValue + " " + okText
@@ -337,6 +404,7 @@ enum ActivityLog {
         if let file = file {
             line += " file=\"\(file.lastPathComponent)\""
             if let size = size { line += " size=\(size)" }
+            if let p = placement { line += " placed=\"" + p.summary + "\"" }
             if kind == .write || kind == .verify, let hash = sha256Prefix(of: file) {
                 line += " sha256=\(hash)"
             }

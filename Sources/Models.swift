@@ -4,6 +4,52 @@ enum AppInfo {
     static let name = "KeroBurn"
 }
 
+// Where a file goes on the chip. Maps to KeroBurn's minipro options
+// --offset / --file_offset / --length / --keep (patches/keroburn-place-at-offset.patch).
+struct Placement: Codable, Hashable {
+    var offset: UInt32 = 0       // chip address the file starts at
+    var fileOffset: UInt32 = 0   // where in the file to start
+    var length: UInt32 = 0       // bytes to take, 0 = rest of the file
+    var keep = false             // keep the chip's contents outside the range
+
+    var isDefault: Bool { offset == 0 && fileOffset == 0 && length == 0 && !keep }
+
+    var args: [String] {
+        if isDefault { return [] }
+        var a: [String] = ["--offset", Placement.hex(offset)]
+        if fileOffset != 0 { a += ["--file_offset", Placement.hex(fileOffset)] }
+        if length != 0 { a += ["--length", Placement.hex(length)] }
+        if keep { a.append("--keep") }
+        return a
+    }
+
+    // Short label for the file list, e.g. "at 0x8000, keep rest"
+    var summary: String {
+        var parts: [String] = ["at " + Placement.hex(offset)]
+        if fileOffset != 0 { parts.append("from file " + Placement.hex(fileOffset)) }
+        if length != 0 { parts.append(Placement.hex(length) + " bytes") }
+        if keep { parts.append("keep rest") }
+        return parts.joined(separator: ", ")
+    }
+
+    static func hex(_ v: UInt32) -> String { "0x" + String(v, radix: 16, uppercase: true) }
+
+    // Accepts "8000", "0x8000", "$8000" (always hex). Empty means 0.
+    static func parse(_ text: String) -> UInt32? {
+        var t = text.trimmingCharacters(in: .whitespaces).lowercased()
+        if t.isEmpty { return 0 }
+        if t.hasPrefix("0x") { t.removeFirst(2) }
+        if t.hasPrefix("$") { t.removeFirst() }
+        return UInt32(t, radix: 16)
+    }
+}
+
+// A file remembered by a preset.
+struct SavedFile: Codable, Hashable {
+    var path: String
+    var placement: Placement?
+}
+
 // A saved chip setup: a friendly name plus the exact minipro device string.
 struct Preset: Codable, Identifiable, Hashable {
     var id = UUID()
@@ -15,8 +61,9 @@ struct Preset: Codable, Identifiable, Hashable {
     var noVerify = false        // -v : skip the verify pass after writing
     var unprotect = false       // -u : turn off write protection before writing (AT28C, 28F, etc.)
     var protectAfter = false    // -P : turn write protection back on after writing
-    var skipPinCheck = false
-    var icon = ""               // optional emoji shown in the sidebar    // when false, a pin contact test (-z) runs before every write
+    var skipPinCheck = false    // when false, a pin contact test (-z) runs before every write
+    var icon = ""               // optional emoji shown in the sidebar
+    var files: [SavedFile] = [] // files this preset loads by itself, in order
 
     init(name: String, device: String, note: String = "",
          skipSizeCheck: Bool = false, ignoreIDError: Bool = false, noVerify: Bool = false) {
@@ -41,6 +88,7 @@ struct Preset: Codable, Identifiable, Hashable {
         unprotect = try c.decodeIfPresent(Bool.self, forKey: .unprotect) ?? false
         protectAfter = try c.decodeIfPresent(Bool.self, forKey: .protectAfter) ?? false
         icon = try c.decodeIfPresent(String.self, forKey: .icon) ?? ""
+        files = try c.decodeIfPresent([SavedFile].self, forKey: .files) ?? []
         skipPinCheck = try c.decodeIfPresent(Bool.self, forKey: .skipPinCheck) ?? false
     }
 
