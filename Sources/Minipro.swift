@@ -217,6 +217,11 @@ final class MiniproRunner: ObservableObject {
                 return
             }
         }
+        // A mismatch means the chip in the socket isn't the one we confirmed before.
+        if line.contains("Chip ID mismatch") || line.contains("Invalid Chip ID") {
+            lastChipID = nil
+            return
+        }
         // "Chip ID: 0x15E10A  OK"
         if line.hasPrefix("Chip ID:"), line.hasSuffix("OK"), let dev = currentDevice {
             let id = line.dropFirst(8).trimmingCharacters(in: .whitespaces)

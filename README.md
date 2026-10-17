@@ -82,7 +82,15 @@ The other buttons are straight minipro options:
 | Pin Check | `-z` |
 | Check Programmer | `-k` |
 
-**Chip ID** also tells you what the chip really is when it doesn't match. With an AM29F040 preset and an SST39SF040 in the socket, you get "Wrong chip: it reads as SST39SF040" and a button to switch to that preset (or make one). Handy for parts with a sticker over the number. Pick any preset from the same family first, since the ID is read differently for flash, EPROMs and so on. It only works for chips minipro has an ID for. Many older EPROMs, GALs and the AT28C16 don't have one, and KeroBurn just says so.
+**Chip ID** also tells you what the chip really is when it doesn't match. With an AM29F040 preset and an SST39SF040 in the socket, you get "Wrong chip: it reads as SST39SF040" and a button to switch to that preset (or make one). Handy for parts with a sticker over the number.
+
+![Chip ID with the wrong chip in the socket: it reads as A29040, with a Use A29040 button](docs/chip-id-wrong.png)
+
+When the ID matches you get "Id OK", and the confirmed ID shows next to the programmer at the top:
+
+![Chip ID matching, with the ID shown in the header](docs/chip-id-ok.png)
+
+ Pick any preset from the same family first, since the ID is read differently for flash, EPROMs and so on. It only works for chips minipro has an ID for. Many older EPROMs, GALs and the AT28C16 don't have one, and KeroBurn just says so.
 
 The checkboxes are saved per preset:
 
