@@ -82,18 +82,31 @@ final class Session: ObservableObject {
 
     // MARK: Files remembered by presets
 
-    // Called when the selected preset changes. Saved files replace the queue only
-    // if it's empty or was itself loaded from a preset, so dropped files are never lost.
+    // Each preset keeps its own file list while the app is open. Switching away
+    // parks the current list; switching back brings it back. A preset that hasn't
+    // been visited yet starts with its saved files (if any).
+    private var parked: [UUID: (files: [QueuedFile], from: UUID?)] = [:]
+    private var currentPresetID: UUID?
+
     func presetSelected(_ preset: Preset) {
-        guard !isBusy else { return }
-        guard files.isEmpty || loadedFrom != nil else { return }
-        if preset.files.isEmpty {
-            if loadedFrom != nil { files.removeAll(); loadedFrom = nil; outcome = nil }
-            return
+        guard !isBusy, currentPresetID != preset.id else { return }
+        if let cur = currentPresetID {
+            parked[cur] = (files, loadedFrom)
         }
-        files = preset.files.map { QueuedFile(url: URL(fileURLWithPath: $0.path), placement: $0.placement) }
-        loadedFrom = preset.id
+        currentPresetID = preset.id
         outcome = nil
+        identified = nil
+        if let p = parked[preset.id] {
+            files = p.files
+            loadedFrom = p.from
+        } else if !preset.files.isEmpty {
+            files = preset.files.map { QueuedFile(url: URL(fileURLWithPath: $0.path), placement: $0.placement) }
+            loadedFrom = preset.id
+        } else {
+            files = []
+            loadedFrom = nil
+        }
+        refreshFiles()
     }
 
     var savedFiles: [SavedFile] {
