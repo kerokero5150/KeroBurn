@@ -30,6 +30,7 @@ struct ContentView: View {
                 } else {
                     store.presets.append(saved)
                 }
+                session.presetEdited(saved)
                 selection = saved.id
             }
             .environmentObject(catalog)

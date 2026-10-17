@@ -109,6 +109,20 @@ final class Session: ObservableObject {
         refreshFiles()
     }
 
+    // The preset's saved files were edited in the preset editor: show the new
+    // list if this preset is on screen and its list came from the preset (or is empty).
+    func presetEdited(_ preset: Preset) {
+        guard !isBusy else { return }
+        let fromPreset: Bool = files.isEmpty || loadedFrom == preset.id
+        if currentPresetID == preset.id {
+            guard fromPreset else { return }
+            files = preset.files.map { QueuedFile(url: URL(fileURLWithPath: $0.path), placement: $0.placement) }
+            loadedFrom = preset.files.isEmpty ? nil : preset.id
+        } else if let p = parked[preset.id], p.files.isEmpty || p.from == preset.id {
+            parked[preset.id] = nil
+        }
+    }
+
     var savedFiles: [SavedFile] {
         files.map { SavedFile(path: $0.url.path, placement: $0.placement) }
     }

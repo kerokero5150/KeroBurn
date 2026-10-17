@@ -8,6 +8,7 @@ struct PresetEditor: View {
     @State private var draft: Preset
     @State private var query: String
     @State private var keyMonitor: Any?
+    @State private var offsetIndex: Int?
     let isNew: Bool
     let onSave: (Preset) -> Void
 
@@ -47,6 +48,55 @@ struct PresetEditor: View {
                 }
             }
 
+            row("Files") {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(draft.files.enumerated()), id: \.offset) { i, f in
+                        HStack(spacing: 6) {
+                            Text(verbatim: URL(fileURLWithPath: f.path).lastPathComponent)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(f.path)
+                            if let p = f.placement {
+                                Text(verbatim: p.summary).font(.caption).foregroundColor(.accentColor)
+                            }
+                            if !FileManager.default.fileExists(atPath: f.path) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                    .help("File not found")
+                            }
+                            Spacer()
+                            if !draft.isLogicDevice {
+                                Button { offsetIndex = i } label: {
+                                    Label(Self.offsetTitle(f), systemImage: "arrow.right.to.line")
+                                }
+                                .controlSize(.small)
+                                .popover(isPresented: offsetBinding(i), arrowEdge: .bottom) {
+                                    PlacementEditor(fileName: URL(fileURLWithPath: f.path).lastPathComponent,
+                                                    fileSize: Self.fileSize(f.path),
+                                                    placement: f.placement ?? Placement()) { p in
+                                        if draft.files.indices.contains(i) {
+                                            draft.files[i].placement = (p?.isDefault ?? true) ? nil : p
+                                        }
+                                        offsetIndex = nil
+                                    }
+                                }
+                            }
+                            Button { draft.files.remove(at: i) } label: {
+                                Image(systemName: "xmark.circle.fill")
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundColor(.secondary)
+                        }
+                    }
+                    HStack {
+                        Button("Choose File…", action: chooseFiles)
+                        Text(verbatim: filesHint)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
             row("Icon") {
                 HStack {
                     TextField("", text: $draft.icon)
@@ -60,38 +110,6 @@ struct PresetEditor: View {
 
             row("Note") {
                 TextField("Optional, e.g. which board this is for", text: $draft.note)
-            }
-
-            if !draft.files.isEmpty {
-                row("Files") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(Array(draft.files.enumerated()), id: \.offset) { i, f in
-                            HStack(spacing: 6) {
-                                Text(verbatim: URL(fileURLWithPath: f.path).lastPathComponent)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .help(f.path)
-                                if let p = f.placement {
-                                    Text(verbatim: p.summary).font(.caption).foregroundColor(.secondary)
-                                }
-                                if !FileManager.default.fileExists(atPath: f.path) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundColor(.orange)
-                                        .help("File not found")
-                                }
-                                Spacer()
-                                Button { draft.files.remove(at: i) } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                }
-                                .buttonStyle(.borderless)
-                                .foregroundColor(.secondary)
-                            }
-                        }
-                        Text("Loaded by themselves when you pick this preset. Change them with Save to Preset on the main screen.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
             }
 
             row("Options") {
@@ -200,6 +218,38 @@ struct PresetEditor: View {
             )
             }
         }
+    }
+
+    private func offsetBinding(_ i: Int) -> Binding<Bool> {
+        Binding(get: { offsetIndex == i }, set: { if !$0 { offsetIndex = nil } })
+    }
+
+    private func chooseFiles() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.title = "Files for this preset"
+        guard panel.runModal() == .OK else { return }
+        let known = Set(draft.files.map { $0.path })
+        let picked = panel.urls.map { $0.standardizedFileURL.path }.filter { !known.contains($0) }
+        let sorted = picked.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        draft.files += sorted.map { SavedFile(path: $0, placement: nil) }
+    }
+
+    static func offsetTitle(_ f: SavedFile) -> String {
+        if f.placement == nil { return "Offset…" }
+        return "Offset"
+    }
+
+    private var filesHint: String {
+        if draft.files.isEmpty { return "Optional. Files picked here load by themselves whenever you select this preset." }
+        return "Loaded by themselves whenever you select this preset."
+    }
+
+    static func fileSize(_ path: String) -> Int64 {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: path)
+        return (attrs?[.size] as? NSNumber)?.int64Value ?? 0
     }
 
     private func pick(_ name: String) {
