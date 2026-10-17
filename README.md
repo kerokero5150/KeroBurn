@@ -100,19 +100,15 @@ While a job runs, the status bar shows the current step (checking pins, checking
 
 ## Pin contact test
 
-Before every write KeroBurn runs a pin contact test, the same idea as the red X's in Xgpro's "Location in Socket" picture. If a leg isn't touching, the write stops and the log shows the socket like this:
+Before every write KeroBurn runs a pin contact test, the same idea as the red X's in Xgpro's "Location in Socket" picture. If a leg isn't touching, the write stops and the log draws the socket with an XX on that pin. Here pin 11 was lifted on purpose:
 
-```
-           +---\_/---+
-   1   ok  |1      32|   ok  40
-  ...
-  11   ok  |11     22|   XX  30
-  ...
-  16  GND  |16     17|   ok  25
-           +---------+
-```
+![Pin check failing on pin 11, marked XX in the socket drawing](docs/pin-check-fail.png)
 
-minipro 0.7.4 only has a pin test for the TL866II+, so KeroBurn ships its own for the T48 as a patch (`patches/keroburn-t48-pin-test.patch`). The same patch adds the socket drawing to the TL866II+ test too. It puts about 3.3V on the chip's GND pin with every other pin pulled down. Each leg that really touches the socket gets pulled up through the chip's own protection diode and reads high. A leg that doesn't stays low. You can also run it on its own with the Pin Check button.
+Press Pin Check to run the test on its own. With every leg seated it ends in "Pins OK":
+
+![Pin check passing with every pin marked ok](docs/pin-check-ok.png)
+
+minipro 0.7.4 only has a pin test for the TL866II+, so KeroBurn ships its own for the T48 as a patch (`patches/keroburn-t48-pin-test.patch`). The same patch adds the socket drawing to the TL866II+ test too. It puts about 3.3V on the chip's GND pin with every other pin pulled down. Each leg that really touches the socket gets pulled up through the chip's own protection diode and reads high. A leg that doesn't stays low.
 
 A few limits:
 
