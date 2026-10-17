@@ -482,9 +482,8 @@ struct DetailPane: View {
             }
             Spacer()
             if !preset.isLogicDevice {
-                Button(placementLabel(file)) { placementTarget = file.id }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
+                offsetButton(file)
+                    .controlSize(.small)
                     .disabled(busy)
                     .help("Write this file at an address instead of from 0")
                     .popover(isPresented: placementBinding(file.id), arrowEdge: .bottom) {
@@ -540,9 +539,19 @@ struct DetailPane: View {
         return f
     }()
 
-    private func placementLabel(_ file: QueuedFile) -> String {
-        if file.placement != nil { return "Offset ✓" }
-        return "Offset…"
+    // A real button, filled in once an offset is set, so it reads as clickable.
+    @ViewBuilder private func offsetButton(_ file: QueuedFile) -> some View {
+        if file.placement != nil {
+            Button { placementTarget = file.id } label: {
+                Label("Offset", systemImage: "checkmark")
+            }
+            .buttonStyle(.borderedProminent)
+        } else {
+            Button { placementTarget = file.id } label: {
+                Label("Offset…", systemImage: "arrow.right.to.line")
+            }
+            .buttonStyle(.bordered)
+        }
     }
 
     private func placementBinding(_ id: UUID) -> Binding<Bool> {
