@@ -49,6 +49,11 @@ struct ContentView: View {
         }
         .onChange(of: selection) { newValue in
             savedSelection = newValue?.uuidString ?? ""
+            // Look the preset up in the store: on macOS 12/13 an onChange closure
+            // still sees the previous view state, so the old preset would be used.
+            if let i = store.index(of: newValue) {
+                session.presetSelected(store.presets[i])
+            }
         }
     }
 
@@ -323,7 +328,6 @@ struct DetailPane: View {
         }
         .padding(18)
         .onAppear { session.presetSelected(preset) }
-        .onChange(of: preset.id) { _ in session.presetSelected(preset) }
         .sheet(isPresented: $showHex) {
             HexViewer(preset: preset, initialFile: session.files.first?.url,
                       initialPlacement: session.files.first?.placement, readOnOpen: readOnOpen)
