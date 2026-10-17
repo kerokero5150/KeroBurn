@@ -4,7 +4,7 @@ A Mac front end for [minipro](https://gitlab.com/DavidGriffith/minipro), the ope
 
 I wrote it because I flash the same handful of parts over and over (SST39SF040, AM29F040, AT28C64B, GAL16V8/20V8/22V10) and got tired of looking up the exact minipro spelling every time.
 
-![KeroBurn after writing and verifying an AT28C64B](docs/main-window.png)
+![KeroBurn main window with the SST39SF040 preset selected](docs/main-window.png)
 
 minipro, libusb and the device database are bundled inside the app, so you don't need Homebrew or MacPorts to run it. Universal binary, runs natively on Intel and Apple Silicon. macOS 12 or later.
 
