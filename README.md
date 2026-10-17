@@ -31,6 +31,29 @@ Drop more than one file and they get written in order, one chip each. After ever
 
 Under the preset name you'll see which programmer is connected and its firmware, plus the chip ID once it's been checked. That's there on purpose, so a screenshot posted when asking for help already says what hardware it's on.
 
+## Writing at an address (Offset…)
+
+Every file in the list has an **Offset…** button. It's the same idea as the file load dialog in Xgpro:
+
+- **Chip address**: where on the chip the file goes
+- **Start in file** and **Length**: use only part of the file (leave them empty for the whole file)
+- **Keep what's already on the chip**: the chip is read first and only that range changes
+
+So if you only want to change a few bytes of code in a ROM, put the patch in its own small file, give it the address, tick Keep, and write. Without Keep, everything outside the range ends up blank (FF).
+
+Flash chips like the 39SF040 can only be erased as a whole, so with Keep the chip is read, the range is swapped in, then it's erased and written back in full. Verify only checks the range you placed. UV EPROMs can't be erased by the programmer, so on those it only works if the new bytes just clear bits, and KeroBurn stops before writing if they don't.
+
+Hex View knows about the offset too, so comparing the file against the chip lines up.
+
+This needs options minipro doesn't have yet. They come from a patch in this repo (`patches/keroburn-place-at-offset.patch`), and the bundled minipro is built with it. From Terminal:
+
+```
+minipro -p SST39SF040 -w patch.bin --offset 0x1000 --keep
+minipro -p SST39SF040 -m patch.bin --offset 0x1000
+```
+
+`--file_offset` and `--length` pick part of the file.
+
 ## Hex View
 
 ![Hex View with a 2764 ROM image loaded](docs/hex-view.png)
@@ -101,6 +124,10 @@ Add one with the + button, or right-click an existing one and Duplicate. In the 
 Watch out, some parts are named differently for the T48 than for the old TL866A. A29040 in PLCC32 is `A29040L@PLCC32` on the T48, for example.
 
 ![Picking a device name from the search list in the preset editor](docs/preset-editor.png)
+
+Presets can also remember their files. Line them up (with offsets if you want), press **Save to Preset**, and next time you pick that preset they're already there. Handy for things you flash over and over, like a ROM HI/LO pair. If a saved file has been moved or renamed it shows in orange and the write won't start. Each file also shows when it was last modified, so you notice if a ROM image changed under you.
+
+While the app is open, every preset keeps its own file list, saved or not, so switching back and forth doesn't lose anything.
 
 Presets live in `~/Library/Application Support/KeroBurn/presets.json`. You can edit it by hand and reload it from Settings.
 
