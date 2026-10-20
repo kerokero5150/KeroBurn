@@ -289,6 +289,7 @@ struct DetailPane: View {
     @State private var dropTargeted = false
     @State private var showHex = false
     @State private var showTools = false
+    @State private var showLogic = false
     @State private var readOnOpen = false
     @State private var placementTarget: UUID?
 
@@ -336,6 +337,11 @@ struct DetailPane: View {
                 .environmentObject(session)
                 .environmentObject(runner)
         }
+        .sheet(isPresented: $showLogic) {
+            LogicTestView()
+                .environmentObject(session)
+                .environmentObject(runner)
+        }
         .sheet(isPresented: $showTools) {
             RomTools(preset: preset, presetSize: preset.isLogicDevice ? nil : catalog.size(of: preset.device))
                 .environmentObject(session)
@@ -361,6 +367,9 @@ struct DetailPane: View {
                 hardwareLine
             }
             Spacer()
+            Button("Logic Test…") { showLogic = true }
+                .disabled(busy)
+                .help("Test a 74 / 4000 series logic chip")
             Button("Check Programmer") {
                 session.runSingle(.programmer, preset: nil, extra: ["-k"])
             }
