@@ -131,6 +131,8 @@ A few limits:
 
 **Split / Join…** next to Add… opens a window with three tabs.
 
+![Split: an SE ROM split into HI and LO, each repeated ×4 to fill a 512 KB chip](docs/split.png)
+
 **Split** turns one ROM file into a file per chip, for boards that read 2 chips as 16 bits (Mac Plus, SE, Classic) or 4 chips as 32 bits (SE/30, IIx, IIci and the other ROM SIMM Macs). Byte order is big-endian like on 68K Macs: HI gets the even bytes, and with 4 chips HH gets byte 0 of every long word. The parts come out as `name_HI.bin` and `name_LO.bin`, or `name_1-LL.bin` to `name_4-HH.bin`.
 
 Chip size starts at the size of the chip in the current preset. If a part is smaller than the chip, it's repeated to fill it (×2, ×4, ×8 and so on), so it doesn't matter which way the board ties the unused upper address lines. The 128 KB HI half of an SE ROM on a 512 KB SST39SF040 gets written four times, for example. **1 chip (no split)** only does the filling, for a small ROM on a bigger chip. Tick "Put them in the file list" and the parts land in the file list, ready to write.
@@ -174,6 +176,10 @@ Every job gets one line in `~/Library/Logs/KeroBurn/KeroBurn-YYYY-MM.log`: time,
 **Firmware warnings.** minipro 0.7.4 was written against T48 firmware 0x120 and complains if yours is older or newer. My T48 shipped with 00.1.07 and most things still worked. After updating it with Xgpro on Windows it reports 00.1.39 ("newer than expected") and everything I've tried works fine. If a chip misbehaves on old firmware, update it first. Since beta 5 you can do that from KeroBurn with **Update Firmware…** next to the programmer line. You still need the update file (`UpdateT48.dat`, `updateII.dat` or `updateT56.dat`). Download Xgpro from [XGecu](http://www.xgecu.com/download.html) or the [Kreeblah/XGecu_Software](https://github.com/Kreeblah/XGecu_Software) mirror (the `Xgpro` folder, newest version number). Open the .rar with The Unarchiver, then open the `XgproVxxxx_Setup.exe` inside it the same way. It's a self-extracting archive, and the .dat files are in it. KeroBurn checks the file against the programmer first and shows both versions before anything gets written.
 
 A word of caution though. If KeroBurn already works fine with your programmer, you don't need to update. Updating from KeroBurn works in most cases, but if it goes wrong, Kero's Mac Mods can't help you recover the programmer or cover any damage. Think it over before you update.
+
+![The firmware update window with its caution note](docs/firmware-update.png)
+
+On my T48 the first try always stalls right after the switch to the bootloader. KeroBurn notices, stops minipro and starts again from bootloader mode, and the second try goes through in about ten seconds.
 
 **Apple Silicon.** Confirmed working on an M2 Pro Mac mini by a tester. I don't own one myself, so reports are still welcome.
 
