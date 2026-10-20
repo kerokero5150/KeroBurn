@@ -87,7 +87,8 @@ struct FirmwareUpdateView: View {
             }
         }
         .padding(18)
-        .frame(minWidth: 620, minHeight: 440)
+        .frame(width: 660)
+        .frame(minHeight: 500)
         .interactiveDismissDisabled(stage == .updating)
     }
 
