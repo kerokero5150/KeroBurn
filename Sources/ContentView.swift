@@ -546,6 +546,12 @@ struct DetailPane: View {
         .padding(.vertical, 5)
         .padding(.horizontal, 8)
         .background(highlighted ? Color.accentColor.opacity(0.15) : Color.clear)
+        .contextMenu {
+            Button("Write from Here") { session.startBatch(.write, preset: preset, from: index) }
+                .disabled(busy || preset.device.isEmpty)
+            Button("Verify from Here") { session.startBatch(.verify, preset: preset, from: index) }
+                .disabled(busy || preset.device.isEmpty)
+        }
     }
 
     @ViewBuilder private func fileDetail(_ file: QueuedFile) -> some View {
@@ -650,7 +656,41 @@ struct DetailPane: View {
 
     // MARK: Chip swap
 
-    private func swapBanner(_ next: Int) -> some View {
+    @ViewBuilder private func swapBanner(_ next: Int) -> some View {
+        if session.retryIndex == next {
+            retryBanner(next)
+        } else {
+            nextChipBanner(next)
+        }
+    }
+
+    // A chip in the middle of a multi-chip run failed. Retry just that one.
+    private func retryBanner(_ index: Int) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title2)
+                .foregroundColor(.red)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("#\(index + 1) failed: reseat or replace that chip").bold()
+                Text(session.retryMessage ?? session.files[index].name)
+                    .font(.callout)
+                    .lineLimit(2)
+                Text(index > 0 ? "The chips before it are done. Retry carries on from here." : "Retry carries on from here.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Button("Stop") { session.stopBatch() }
+            Button("Skip") { session.skipNext() }
+            Button("Retry") { session.continueBatch() }
+                .keyboardShortcut(.defaultAction)
+        }
+        .padding(12)
+        .background(Color.red.opacity(0.15))
+        .cornerRadius(8)
+    }
+
+    private func nextChipBanner(_ next: Int) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.triangle.2.circlepath")
                 .font(.title2)

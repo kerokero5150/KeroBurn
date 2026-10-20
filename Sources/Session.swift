@@ -55,6 +55,8 @@ final class Session: ObservableObject {
     @Published var selectedFileID: UUID?
     @Published private(set) var activeIndex: Int?
     @Published private(set) var waitingIndex: Int?   // next file, waiting for a chip swap
+    @Published private(set) var retryIndex: Int?     // a chip in a multi-chip run failed and can be tried again
+    @Published private(set) var retryMessage: String?
     @Published private(set) var batchKind: JobKind?
     @Published var outcome: Outcome?
     @Published var identified: String?   // what minipro thinks the chip really is, after an ID mismatch
@@ -175,8 +177,9 @@ final class Session: ObservableObject {
 
     // MARK: Batch write / verify
 
-    func startBatch(_ kind: JobKind, preset: Preset) {
-        guard !isBusy, !files.isEmpty, kind == .write || kind == .verify else { return }
+    func startBatch(_ kind: JobKind, preset: Preset, from start: Int = 0) {
+        guard !isBusy, !files.isEmpty, kind == .write || kind == .verify,
+              files.indices.contains(start) else { return }
         refreshFiles()
         if let gone = missingFiles.first {
             outcome = .failure(gone.name + " isn't there any more. Was it moved or renamed?")
@@ -188,18 +191,32 @@ final class Session: ObservableObject {
         outcome = nil
         batchKind = kind
         batchPreset = preset
-        process(index: 0)
+        retryIndex = nil
+        retryMessage = nil
+        if start > 0 {
+            for i in 0..<start { files[i].status = .skipped }
+            runner.append(.info, "Starting from #" + String(start + 1) + " " + files[start].name)
+        }
+        process(index: start)
     }
 
     func continueBatch() {
         guard let next = waitingIndex else { return }
         waitingIndex = nil
+        if retryIndex != nil {
+            retryIndex = nil
+            retryMessage = nil
+            outcome = nil
+            runner.append(.info, "Trying #" + String(next + 1) + " " + files[next].name + " again")
+        }
         process(index: next)
     }
 
     func skipNext() {
         guard let next = waitingIndex else { return }
         files[next].status = .skipped
+        retryIndex = nil
+        retryMessage = nil
         runner.append(.info, "Skipped \(files[next].name)")
         if next + 1 < files.count {
             waitingIndex = next + 1
@@ -213,7 +230,10 @@ final class Session: ObservableObject {
         if runner.isRunning { runner.cancel() }
         if waitingIndex != nil {
             waitingIndex = nil
-            finishBatch(success: false, message: "Stopped")
+            let msg = retryMessage ?? "Stopped"
+            retryIndex = nil
+            retryMessage = nil
+            finishBatch(success: false, message: msg)
         }
     }
 
@@ -249,7 +269,20 @@ final class Session: ObservableObject {
                                tail: ok ? [] : Array(output.suffix(8)))
             self.activeIndex = nil
             if !ok {
-                self.finishBatch(success: false, message: Session.failureText(file.name, status: status, output: output))
+                let msg = Session.failureText(file.name, status: status, output: output)
+                if self.files.count > 1 && status != 15 {
+                    // Keep the run going: fix or swap this chip and try it again,
+                    // instead of starting over from the first chip.
+                    self.retryIndex = index
+                    self.retryMessage = msg
+                    self.waitingIndex = index
+                    self.outcome = .failure(msg)
+                    self.runner.append(.error, msg)
+                    self.runner.append(.info, "Reseat or replace the chip for #\(index + 1), then press Retry. The chips before it are done.")
+                    Sounds.failure()
+                } else {
+                    self.finishBatch(success: false, message: msg)
+                }
             } else if index + 1 < self.files.count {
                 self.waitingIndex = index + 1
                 self.runner.append(.info, "Insert the chip for \(self.files[index + 1].name), then press Continue.")
