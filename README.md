@@ -127,6 +127,28 @@ A few limits:
 - Chips with GND on ZIF pin 17 to 24 (most 40-pin parts) are skipped, the T48 can't drive those pins.
 - I've tested it on 32-pin flash so far. Other packages should work the same way, but tell me if they don't.
 
+## Split, Undo Split and Join
+
+**Split / Join…** next to Add… opens a window with three tabs.
+
+**Split** turns one ROM file into a file per chip, for boards that read 2 chips as 16 bits (Mac Plus, SE, Classic) or 4 chips as 32 bits (SE/30, IIx, IIci and the other ROM SIMM Macs). Byte order is big-endian like on 68K Macs: HI gets the even bytes, and with 4 chips HH gets byte 0 of every long word. The parts come out as `name_HI.bin` and `name_LO.bin`, or `name_1-LL.bin` to `name_4-HH.bin`.
+
+Chip size starts at the size of the chip in the current preset. If a part is smaller than the chip, it's repeated to fill it (×2, ×4, ×8 and so on), so it doesn't matter which way the board ties the unused upper address lines. The 128 KB HI half of an SE ROM on a 512 KB SST39SF040 gets written four times, for example. **1 chip (no split)** only does the filling, for a small ROM on a bigger chip. Tick "Put them in the file list" and the parts land in the file list, ready to write.
+
+**Undo Split** puts the parts back together into the entire ROM. Drop all 2 or 4 files on it at once and it matches them up by HI, LO, LL, ML, MH or HH in the name (or by name order). Each part can also come straight from a chip with Read Chip. Repeated copies from a bigger chip are dropped, so you get the original size back. If the result is a 68K Mac ROM, the checksum in its header gets checked and you see "Mac ROM checksum OK".
+
+**Join** stacks files one after another, like a ROM followed by a disk image. Each file starts where the one before it ends, and the list shows the address range of each. "Fill the end to" pads the rest with FF up to the chip size.
+
+## Logic IC test
+
+**Logic Test…** at the top right tests 74 and 4000 series chips, about 290 of them, with the test vectors that come with minipro. Pick the chip, put it in the socket with pin 1 at the top left next to the lever, and press Test. Every vector runs once with pull-ups and once with pull-downs, so an output that's stuck or not connected at all gets caught too.
+
+When something's wrong, the window says which pins failed and in how many vectors, and the table marks every cell that didn't match in red. Here I bent pin 13 of a 7402 so it barely touched the socket:
+
+![Logic test of a 7402 failing on pin 13](docs/logic-test-fail.png)
+
+Only chips in minipro's list can be tested, and they all run at 5V. There's no "guess what this chip is" mode on purpose. Driving the wrong pins of an unknown chip can damage it.
+
 ## Presets
 
 Add one with the + button, or right-click an existing one and Duplicate. In the editor, type part of a name like `2732` or `2764` and pick from the list (the up and down arrows work too). You can give a preset an emoji icon so it's easier to spot in the sidebar. The list comes from the T48 / TL866II+ section of minipro's database, so a name with a green check is one your programmer will accept. An orange triangle means minipro doesn't know that name.
