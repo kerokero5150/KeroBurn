@@ -181,6 +181,15 @@ sudo mv /Library/Developer/CommandLineTools/usr/include/swift/module.modulemap \
         /Library/Developer/CommandLineTools/usr/include/swift/module.modulemap.bak
 ```
 
+## It's free
+
+The parts of KeroBurn I wrote are free to use. I made it because I needed it
+myself, not to make money from it. If it saves you some time and you feel like
+giving something back, take a look around my store. I design and sell hardware
+for vintage Macs and the Apple II, and that's what keeps projects like this going.
+
+https://en.infinityproducts.co.jp/shop-1
+
 ## License
 
 minipro is GPLv3, and since it ships inside the app, KeroBurn is GPLv3 too.
