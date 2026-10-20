@@ -1,3 +1,5 @@
+<p align="center"><img src="Assets/AppIcon.png" width="160" alt="KeroBurn app icon"></p>
+
 # KeroBurn
 
 A Mac front end for [minipro](https://gitlab.com/DavidGriffith/minipro), the open source driver for XGecu chip programmers (T48, T56, TL866II+, TL866A/CS). Pick a chip, drop a file on the window, hit Write. No Windows box, no typing device names into Terminal.
