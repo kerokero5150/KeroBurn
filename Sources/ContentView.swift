@@ -288,6 +288,7 @@ struct DetailPane: View {
 
     @State private var dropTargeted = false
     @State private var showHex = false
+    @State private var showTools = false
     @State private var readOnOpen = false
     @State private var placementTarget: UUID?
 
@@ -332,6 +333,11 @@ struct DetailPane: View {
         .sheet(isPresented: $showHex) {
             HexViewer(preset: preset, initialFile: session.files.first?.url,
                       initialPlacement: session.files.first?.placement, readOnOpen: readOnOpen)
+                .environmentObject(session)
+                .environmentObject(runner)
+        }
+        .sheet(isPresented: $showTools) {
+            RomTools(preset: preset, presetSize: preset.isLogicDevice ? nil : catalog.size(of: preset.device))
                 .environmentObject(session)
                 .environmentObject(runner)
         }
@@ -662,6 +668,10 @@ struct DetailPane: View {
                 .disabled(busy || session.files.isEmpty || preset.device.isEmpty)
 
             Divider().frame(height: 22)
+
+            Button("Split / Join…") { showTools = true }
+                .disabled(busy)
+                .help("Split a ROM into a file per chip for 16-bit or 32-bit boards, or join parts back into one ROM")
 
             Group {
                 Button("Hex View…") { readOnOpen = false; showHex = true }

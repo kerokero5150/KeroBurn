@@ -307,6 +307,7 @@ final class DeviceCatalog: ObservableObject {
     @Published private(set) var names: [String] = []
     @Published private(set) var state: State = .idle
     private var nameSet: Set<String> = []
+    private var sizes: [String: Int] = [:]
 
     var isLoaded: Bool {
         if case .loaded = state { return true }
@@ -326,7 +327,9 @@ final class DeviceCatalog: ObservableObject {
         state = .loading
         DispatchQueue.global(qos: .userInitiated).async {
             let list = Self.parseNames(xml)
+            let sizeMap = Self.parseSizes(xml)
             DispatchQueue.main.async {
+                self.sizes = sizeMap
                 if list.count < 100 {
                     self.state = .failed("Could not read device names from \(xml.path)")
                 } else {
@@ -363,6 +366,37 @@ final class DeviceCatalog: ObservableObject {
         }
         out.sort { $0.localizedStandardCompare($1) == .orderedAscending }
         return out
+    }
+
+    // Chip size in bytes (code_memory_size), keyed by every name in the entry.
+    static func parseSizes(_ url: URL) -> [String: Int] {
+        guard let data = try? Data(contentsOf: url) else { return [:] }
+        var text = String(decoding: data, as: UTF8.self)
+        if let start = text.range(of: "type=\"INFOIC2PLUS\"") {
+            let rest = text[start.upperBound...]
+            let end = rest.range(of: "</database")?.lowerBound ?? rest.endIndex
+            text = String(rest[..<end])
+        }
+        let pattern = "<ic\\s+name=\"([^\"]+)\"[^>]*?code_memory_size=\"0x([0-9A-Fa-f]+)\""
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return [:] }
+        var out: [String: Int] = [:]
+        let ns = text as NSString
+        re.enumerateMatches(in: text, range: NSRange(location: 0, length: ns.length)) { match, _, _ in
+            guard let m = match, m.numberOfRanges > 2,
+                  let size = Int(ns.substring(with: m.range(at: 2)), radix: 16), size > 0 else { return }
+            for part in ns.substring(with: m.range(at: 1)).split(separator: ",") {
+                let name = part.trimmingCharacters(in: .whitespaces)
+                if !name.isEmpty && out[name] == nil { out[name] = size }
+            }
+        }
+        return out
+    }
+
+    func size(of device: String) -> Int? {
+        guard !device.isEmpty else { return nil }
+        if let s = sizes[device] { return s }
+        let key = sizes.keys.first { $0.caseInsensitiveCompare(device) == .orderedSame }
+        return key.flatMap { sizes[$0] }
     }
 
     // nil means "can't tell yet".
