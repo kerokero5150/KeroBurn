@@ -24,7 +24,7 @@ enum RomLayout: Int, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .single: return "1 chip"
+        case .single: return "1 chip (no split)"
         case .pair: return "2 chips (16-bit)"
         case .quad: return "4 chips (32-bit)"
         }
@@ -519,8 +519,7 @@ struct RomTools: View {
 
             HStack(spacing: 20) {
                 Picker("Chips:", selection: $split.layout) {
-                    Text(RomLayout.pair.title).tag(RomLayout.pair)
-                    Text(RomLayout.quad.title).tag(RomLayout.quad)
+                    ForEach(RomLayout.allCases) { l in Text(l.title).tag(l) }
                 }
                 .frame(width: 260)
 
@@ -533,6 +532,12 @@ struct RomTools: View {
                 .disabled(split.data.isEmpty)
             }
 
+            if split.layout == .single {
+                Text("1 chip doesn't split anything. It repeats the whole ROM to fill a bigger chip, for example a 64 KB ROM on a 512 KB chip.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Text(verbatim: chipSizeHint)
                 .font(.caption)
                 .foregroundColor(.secondary)
