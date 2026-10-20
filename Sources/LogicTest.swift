@@ -302,6 +302,9 @@ struct LogicTestView: View {
     }
 
     private func vectorTable(_ r: LogicResult, pins: Int) -> some View {
+        // Grow with the number of vectors, up to a point, and keep the table at the top left.
+        let height = min(CGFloat(r.rows.count) * 19 + 34, 320)
+        return GeometryReader { geo in
         ScrollView([.horizontal, .vertical]) {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 1) {
@@ -328,8 +331,10 @@ struct LogicTestView: View {
                 }
             }
             .padding(6)
+            .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
         }
-        .frame(maxHeight: 300)
+        }
+        .frame(height: height)
         .background(RoundedRectangle(cornerRadius: 6).fill(Color(NSColor.textBackgroundColor)))
     }
 
