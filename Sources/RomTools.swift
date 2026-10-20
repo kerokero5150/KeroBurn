@@ -537,13 +537,6 @@ struct RomTools: View {
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let note = presetNote {
-                Text(verbatim: note)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
             if !split.data.isEmpty { fillNote }
 
             if !split.parts.isEmpty {
@@ -657,15 +650,6 @@ struct RomTools: View {
             return parts.joined()
         }
         return "Pick the size of the chip you're going to flash. Each part is repeated to fill it."
-    }
-
-    // Tell the user where the default chip size came from.
-    private var presetNote: String? {
-        guard let p = presetSize else { return nil }
-        let parts: [String] = ["By default, the parts are made to fit the chip in the selected preset (",
-                               preset.device, ", ", RomMath.sizeText(p),
-                               "). Pick another size if you're flashing a different chip."]
-        return parts.joined()
     }
 
     private func sizeLabel(_ s: Int) -> String {
