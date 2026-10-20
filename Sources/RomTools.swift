@@ -532,6 +532,11 @@ struct RomTools: View {
                 .disabled(split.data.isEmpty)
             }
 
+            Text(verbatim: chipSizeHint)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
             if !split.data.isEmpty { fillNote }
 
             if !split.parts.isEmpty {
@@ -635,6 +640,16 @@ struct RomTools: View {
             Text("The file size doesn't divide evenly between the chips. The last part is padded with FF.")
                 .font(.caption).foregroundColor(.orange)
         }
+    }
+
+    private var chipSizeHint: String {
+        if let p = presetSize, !preset.device.isEmpty {
+            let parts: [String] = ["By default, each part is made to fit the chip in the current preset (",
+                                   preset.device, ", ", RomMath.sizeText(p),
+                                   "). If you're going to flash a different chip, pick its size here."]
+            return parts.joined()
+        }
+        return "Pick the size of the chip you're going to flash. Each part is repeated to fill it."
     }
 
     private func sizeLabel(_ s: Int) -> String {
