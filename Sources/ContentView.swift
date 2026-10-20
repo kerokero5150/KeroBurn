@@ -441,6 +441,9 @@ struct DetailPane: View {
             .disabled(busy || session.files.isEmpty || session.loadedFrom == preset.id)
             .help("Remember these files (and their offsets) so this preset loads them by itself")
             Button("Add…", action: openFiles)
+            Button("Split / Join…") { showTools = true }
+                .disabled(busy)
+                .help("Split a ROM into a file per chip for 16-bit or 32-bit boards, or join parts back into one ROM")
             Button("Sort by Name") { session.sortByName() }
                 .disabled(busy || session.files.count < 2)
             Button("Clear") { session.clearFiles() }
@@ -668,10 +671,6 @@ struct DetailPane: View {
                 .disabled(busy || session.files.isEmpty || preset.device.isEmpty)
 
             Divider().frame(height: 22)
-
-            Button("Split / Join…") { showTools = true }
-                .disabled(busy)
-                .help("Split a ROM into a file per chip for 16-bit or 32-bit boards, or join parts back into one ROM")
 
             Group {
                 Button("Hex View…") { readOnOpen = false; showHex = true }
