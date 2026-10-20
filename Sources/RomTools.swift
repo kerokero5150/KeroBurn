@@ -286,6 +286,51 @@ final class JoinModel: ObservableObject {
         set(lane, name: url.lastPathComponent, bytes: b)
     }
 
+    // Undo a split in one go: 2 or 4 files dropped together. Files are matched to
+    // chips by a HI / LO / LL / ML / MH / HH word in the name, or else by name order.
+    func loadAll(_ urls: [URL]) {
+        let sorted = urls.sorted {
+            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+        }
+        let newLayout: RomLayout
+        switch sorted.count {
+        case 2: newLayout = .pair
+        case 4: newLayout = .quad
+        default:
+            problem = "Drop 2 files (HI and LO) or 4 files (LL, ML, MH, HH) together."
+            return
+        }
+        layout = newLayout
+        let lanes = newLayout.lanes
+        let order = Self.matchByName(sorted, lanes: lanes) ?? sorted
+        var newSlots: [Int: Slot] = [:]
+        for (lane, url) in zip(lanes, order) {
+            guard let b = RomMath.readBytes(url) else {
+                problem = "Couldn't read " + url.lastPathComponent
+                return
+            }
+            newSlots[lane.index] = Slot(name: url.lastPathComponent, bytes: b, info: RomMath.info(b))
+        }
+        slots = newSlots
+    }
+
+    static func matchByName(_ urls: [URL], lanes: [RomLane]) -> [URL]? {
+        var out: [URL] = []
+        for lane in lanes {
+            let hits = urls.filter { nameWords($0).contains(lane.name) }
+            guard hits.count == 1 else { return nil }
+            out.append(hits[0])
+        }
+        return Set(out).count == out.count ? out : nil
+    }
+
+    // "ROM_U1-LL.bin" -> ["ROM", "U1", "LL"]
+    static func nameWords(_ url: URL) -> Set<String> {
+        let base = url.deletingPathExtension().lastPathComponent.uppercased()
+        let words = base.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+        return Set(words)
+    }
+
     private func rebuild() {
         result = nil
         resultInfo = ""
@@ -348,11 +393,11 @@ struct RomTools: View {
             HStack {
                 Picker("", selection: $tab) {
                     Text("Split").tag(0)
-                    Text("Join").tag(1)
+                    Text("Undo Split").tag(1)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 200)
+                .frame(width: 240)
                 Spacer()
                 Button("Close") { dismiss() }
                     .keyboardShortcut(.cancelAction)
@@ -552,15 +597,24 @@ struct RomTools: View {
 
     private var joinPane: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Join a file per chip back into one ROM file. Load each part from a file, or read it straight from the chip.")
+            Text("Put split parts back together as the entire ROM. Drop all 2 or 4 files at once, or load each part on its own, from a file or straight from the chip.")
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Picker("Chips:", selection: $join.layout) {
-                Text(RomLayout.pair.title).tag(RomLayout.pair)
-                Text(RomLayout.quad.title).tag(RomLayout.quad)
+            HStack(spacing: 12) {
+                Picker("Chips:", selection: $join.layout) {
+                    Text(RomLayout.pair.title).tag(RomLayout.pair)
+                    Text(RomLayout.quad.title).tag(RomLayout.quad)
+                }
+                .frame(width: 260)
+                Button("Choose All Parts…") {
+                    let urls = chooseFiles()
+                    if !urls.isEmpty {
+                        saved = nil
+                        join.loadAll(urls)
+                    }
+                }
             }
-            .frame(width: 260)
 
             VStack(spacing: 0) {
                 ForEach(join.layout.lanes, id: \.self) { lane in
@@ -599,6 +653,30 @@ struct RomTools: View {
                 }
             }
         }
+        .contentShape(Rectangle())
+        .onDrop(of: [UTType.fileURL], isTargeted: nil) { providers in
+            dropURLs(providers) { urls in
+                saved = nil
+                join.loadAll(urls)
+            }
+        }
+    }
+
+    // "MacSE_HI.bin" or "IIci_1-LL.bin" -> "MacSE.bin" / "IIci.bin"
+    private func joinedName() -> String {
+        let first = join.layout.lanes.first.flatMap { join.slots[$0.index]?.name } ?? ""
+        let url = URL(fileURLWithPath: first)
+        var base = url.deletingPathExtension().lastPathComponent
+        let pattern = "[ _-]*(U?[0-9][ _-]*)?(HI|LO|LL|ML|MH|HH)$"
+        if let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+            let ns = base as NSString
+            if let m = re.firstMatch(in: base, range: NSRange(location: 0, length: ns.length)), m.range.location > 0 {
+                base = ns.substring(to: m.range.location)
+            }
+        }
+        if base.isEmpty || first.isEmpty || first.contains(" read from ") { base = "joined" }
+        let ext = url.pathExtension.isEmpty ? "bin" : url.pathExtension
+        return base + "." + ext
     }
 
     private func joinRow(_ lane: RomLane) -> some View {
@@ -639,9 +717,13 @@ struct RomTools: View {
             get: { laneTargeted == lane.index },
             set: { on in laneTargeted = on ? lane.index : (laneTargeted == lane.index ? nil : laneTargeted) }
         )) { providers in
-            dropURL(providers) { url in
+            dropURLs(providers) { urls in
                 saved = nil
-                join.load(url, into: lane)
+                if urls.count > 1 {
+                    join.loadAll(urls)
+                } else if let url = urls.first {
+                    join.load(url, into: lane)
+                }
             }
         }
     }
@@ -670,7 +752,7 @@ struct RomTools: View {
     private func saveJoined() {
         guard let r = join.result else { return }
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "joined.bin"
+        panel.nameFieldStringValue = joinedName()
         panel.canCreateDirectories = true
         panel.title = "Save the joined ROM"
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -690,6 +772,34 @@ struct RomTools: View {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         return panel.runModal() == .OK ? panel.url : nil
+    }
+
+    private func chooseFiles() -> [URL] {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.title = "Choose the 2 or 4 parts"
+        return panel.runModal() == .OK ? panel.urls : []
+    }
+
+    private func dropURLs(_ providers: [NSItemProvider], _ handle: @escaping ([URL]) -> Void) -> Bool {
+        guard !providers.isEmpty else { return false }
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var urls: [URL] = []
+        for provider in providers {
+            group.enter()
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                if let url = url {
+                    lock.lock()
+                    urls.append(url)
+                    lock.unlock()
+                }
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) { handle(urls) }
+        return true
     }
 
     private func dropURL(_ providers: [NSItemProvider], _ handle: @escaping (URL) -> Void) -> Bool {
