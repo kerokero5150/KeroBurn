@@ -368,6 +368,94 @@ final class JoinModel: ObservableObject {
     }
 }
 
+// MARK: - Join model (stack files one after another, like Crucible's Join)
+
+final class ConcatModel: ObservableObject {
+    struct Item: Identifiable {
+        let id = UUID()
+        let url: URL
+        let bytes: [UInt8]
+        let info: String
+    }
+
+    @Published var items: [Item] = [] { didSet { rebuild() } }
+    @Published var padTo = 0 { didSet { rebuild() } }     // 0 = no padding
+    @Published private(set) var result: [UInt8]?
+    @Published private(set) var resultInfo = ""
+    @Published private(set) var resultChecksum: String?
+    @Published var problem: String?
+
+    var total: Int { items.reduce(0) { $0 + $1.bytes.count } }
+
+    func add(_ urls: [URL]) {
+        problem = nil
+        let sorted = urls.sorted {
+            $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+        }
+        var list = items
+        for url in sorted {
+            guard let b = RomMath.readBytes(url) else {
+                problem = "Couldn't read " + url.lastPathComponent
+                continue
+            }
+            list.append(Item(url: url, bytes: b, info: RomMath.info(b)))
+        }
+        items = list
+        if padTo != 0 && padTo < total { padTo = 0 }
+    }
+
+    func remove(_ id: UUID) {
+        items.removeAll { $0.id == id }
+        if padTo != 0 && padTo < total { padTo = 0 }
+    }
+
+    func move(_ id: UUID, by delta: Int) {
+        guard let i = items.firstIndex(where: { $0.id == id }) else { return }
+        let j = i + delta
+        guard items.indices.contains(j) else { return }
+        items.swapAt(i, j)
+    }
+
+    // Chip address where each file starts.
+    func start(of id: UUID) -> Int {
+        var addr = 0
+        for item in items {
+            if item.id == id { return addr }
+            addr += item.bytes.count
+        }
+        return addr
+    }
+
+    // "No padding", then powers of two that hold everything.
+    var padChoices: [Int] {
+        var list: [Int] = [0]
+        guard total > 0 else { return list }
+        var s = 1024
+        while s < total { s *= 2 }
+        while list.count < 7 && s <= 64 * 1024 * 1024 {
+            list.append(s)
+            s *= 2
+        }
+        return list
+    }
+
+    private func rebuild() {
+        result = nil
+        resultInfo = ""
+        resultChecksum = nil
+        guard !items.isEmpty else { return }
+        var out: [UInt8] = []
+        out.reserveCapacity(max(total, padTo))
+        for item in items { out.append(contentsOf: item.bytes) }
+        if padTo > out.count {
+            out.append(contentsOf: [UInt8](repeating: 0xFF, count: padTo - out.count))
+        }
+        result = out
+        resultInfo = RomMath.info(out)
+        resultChecksum = RomMath.checksumNote(out)
+    }
+}
+
 // MARK: - Window
 
 struct RomTools: View {
@@ -380,6 +468,7 @@ struct RomTools: View {
 
     @StateObject private var split = SplitModel()
     @StateObject private var join = JoinModel()
+    @StateObject private var concat = ConcatModel()
 
     @State private var tab = 0
     @State private var addToList = true
@@ -394,21 +483,29 @@ struct RomTools: View {
                 Picker("", selection: $tab) {
                     Text("Split").tag(0)
                     Text("Undo Split").tag(1)
+                    Text("Join").tag(2)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 240)
+                .frame(width: 300)
                 Spacer()
                 Button("Close") { dismiss() }
                     .keyboardShortcut(.cancelAction)
             }
             Divider()
-            if tab == 0 { splitPane } else { joinPane }
+            if tab == 0 {
+                splitPane
+            } else if tab == 1 {
+                joinPane
+            } else {
+                concatPane
+            }
             Spacer(minLength: 0)
         }
         .padding(18)
         .frame(minWidth: 760, minHeight: 560)
         .onChange(of: split.layout) { _ in split.pickChipSize(presetSize) }
+        .onChange(of: tab) { _ in saved = nil }
     }
 
     // MARK: Split
@@ -662,6 +759,150 @@ struct RomTools: View {
         }
     }
 
+    // MARK: Join (stack)
+
+    private var concatPane: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Stack files one after another into one ROM, for example a ROM followed by a disk image. Each file starts where the one before it ends.")
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 12) {
+                Button("Add Files…") {
+                    let urls = chooseFiles(title: "Choose files to stack")
+                    if !urls.isEmpty {
+                        saved = nil
+                        concat.add(urls)
+                    }
+                }
+                Button("Clear") { concat.items = []; concat.padTo = 0 }
+                    .disabled(concat.items.isEmpty)
+                Spacer()
+                Picker("Fill the end to:", selection: $concat.padTo) {
+                    ForEach(concat.padChoices, id: \.self) { s in
+                        Text(verbatim: s == 0 ? "No padding" : RomMath.sizeText(s) + " (FF)").tag(s)
+                    }
+                }
+                .frame(width: 260)
+                .disabled(concat.items.isEmpty)
+            }
+
+            if concat.items.isEmpty {
+                VStack(spacing: 6) {
+                    Image(systemName: "square.stack.3d.down.right")
+                        .font(.system(size: 26)).foregroundColor(.secondary)
+                    Text("Drop files here, in the order they go in the ROM").foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 120)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [5, 3]))
+                )
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(concat.items.enumerated()), id: \.element.id) { index, item in
+                        concatRow(index: index, item: item)
+                        Divider()
+                    }
+                }
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color(NSColor.controlBackgroundColor)))
+            }
+
+            if let p = concat.problem {
+                Text(verbatim: p).foregroundColor(.red)
+            }
+            if concat.result != nil {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Result").bold()
+                    Text(verbatim: concat.resultInfo)
+                        .font(.system(.body, design: .monospaced))
+                    if let c = concat.resultChecksum {
+                        Text(verbatim: c).font(.caption).foregroundColor(.green)
+                    }
+                }
+            }
+
+            HStack(spacing: 12) {
+                Button("Save ROM…", action: saveConcat)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(concat.result == nil)
+                Toggle("Put it in the file list, ready to write", isOn: $addToList)
+                    .toggleStyle(.checkbox)
+                    .disabled(session.isBusy)
+            }
+            if let s = saved {
+                Label(s, systemImage: "checkmark.circle.fill").foregroundColor(.green)
+            }
+        }
+        .contentShape(Rectangle())
+        .onDrop(of: [UTType.fileURL], isTargeted: nil) { providers in
+            dropURLs(providers) { urls in
+                saved = nil
+                concat.add(urls)
+            }
+        }
+    }
+
+    private func concatRow(index: Int, item: ConcatModel.Item) -> some View {
+        let start = concat.start(of: item.id)
+        let end = start + item.bytes.count - 1
+        let range: String = [HexModel.hex(start), " - ", HexModel.hex(max(start, end))].joined()
+        return HStack(spacing: 12) {
+            Text(verbatim: "#" + String(index + 1))
+                .font(.system(.body, design: .monospaced))
+                .foregroundColor(.secondary)
+                .frame(width: 32, alignment: .leading)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(verbatim: item.url.lastPathComponent).lineLimit(1)
+                Text(verbatim: range)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Text(verbatim: item.info)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(.secondary)
+            Button { concat.move(item.id, by: -1) } label: { Image(systemName: "chevron.up") }
+                .buttonStyle(.borderless)
+                .disabled(index == 0)
+            Button { concat.move(item.id, by: 1) } label: { Image(systemName: "chevron.down") }
+                .buttonStyle(.borderless)
+                .disabled(index == concat.items.count - 1)
+            Button { concat.remove(item.id) } label: { Image(systemName: "xmark.circle.fill") }
+                .buttonStyle(.borderless)
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+    }
+
+    private func saveConcat() {
+        guard let r = concat.result else { return }
+        let panel = NSSavePanel()
+        let first = concat.items.first?.url
+        let base = first?.deletingPathExtension().lastPathComponent ?? "rom"
+        let ext = first?.pathExtension ?? ""
+        panel.nameFieldStringValue = base + "_joined." + (ext.isEmpty ? "bin" : ext)
+        panel.directoryURL = first?.deletingLastPathComponent()
+        panel.canCreateDirectories = true
+        panel.title = "Save the joined ROM"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try Data(r).write(to: url, options: .atomic)
+        } catch {
+            concat.problem = "Couldn't save: " + error.localizedDescription
+            return
+        }
+        runner.append(.success, "Saved " + url.lastPathComponent)
+        if addToList && !session.isBusy {
+            session.clearFiles()
+            session.addFiles([url])
+            saved = "Saved, and put in the file list."
+        } else {
+            saved = "Saved " + url.lastPathComponent
+        }
+    }
+
     // "MacSE_HI.bin" or "IIci_1-LL.bin" -> "MacSE.bin" / "IIci.bin"
     private func joinedName() -> String {
         let first = join.layout.lanes.first.flatMap { join.slots[$0.index]?.name } ?? ""
@@ -774,11 +1015,11 @@ struct RomTools: View {
         return panel.runModal() == .OK ? panel.url : nil
     }
 
-    private func chooseFiles() -> [URL] {
+    private func chooseFiles(title: String = "Choose the 2 or 4 parts") -> [URL] {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        panel.title = "Choose the 2 or 4 parts"
+        panel.title = title
         return panel.runModal() == .OK ? panel.urls : []
     }
 
