@@ -24,6 +24,10 @@ struct FirmwareUpdateView: View {
     @State private var file: URL?
     @State private var stage: Stage = .idle
     @State private var targeted = false
+    @State private var attempt = 0
+    @State private var stalledForRetry = false
+    @State private var stallSince: Date?
+    @State private var watchdog: Timer?
 
     private var running: Bool { stage == .checking || stage == .updating }
 
@@ -156,8 +160,19 @@ struct FirmwareUpdateView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         case .updating:
-            Label("Updating. Don't unplug the programmer.", systemImage: "exclamationmark.triangle.fill")
-                .foregroundColor(.orange)
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Updating. Don't unplug the programmer.", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                if !runner.liveLine.isEmpty {
+                    Text(verbatim: runner.liveLine)
+                        .font(.system(.callout, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                if attempt > 1 {
+                    Text("Second try, starting from bootloader mode.")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+            }
         case .done:
             Label("Firmware updated. The new version is shown above.", systemImage: "checkmark.circle.fill")
                 .foregroundColor(.green)
@@ -232,8 +247,23 @@ struct FirmwareUpdateView: View {
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
+        attempt = 0
+        startUpdate(f, version: version)
+    }
+
+    // On macOS, minipro can stall on the first block when it switches the T48 to
+    // the bootloader and writes in the same run. A fresh run that starts in
+    // bootloader mode goes through, so if the write doesn't move we stop it and
+    // run once more.
+    private func startUpdate(_ f: URL, version: String) {
+        attempt += 1
+        stalledForRetry = false
+        stallSince = nil
         stage = .updating
+        startWatchdog()
         runner.run(["-F", f.path], input: "y\n") { status, output in
+            watchdog?.invalidate()
+            watchdog = nil
             let ok = status == 0 && output.contains { $0.contains("Reflash... OK") }
             if ok {
                 stage = .done
@@ -244,10 +274,34 @@ struct FirmwareUpdateView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                     if !runner.isRunning { runner.run(["-k"]) { _, _ in } }
                 }
+            } else if stalledForRetry && attempt < 2 {
+                runner.append(.info, "The write stalled after switching to the bootloader. Starting again in bootloader mode.")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    startUpdate(f, version: version)
+                }
             } else {
                 let last = output.last { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
                 stage = .failed("The update didn't finish: " + (last ?? "exit " + String(status)))
                 Sounds.failure()
+            }
+        }
+    }
+
+    // Watch for "Reflashing..." that never gets to a percentage.
+    private func startWatchdog() {
+        watchdog?.invalidate()
+        watchdog = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            guard runner.isRunning else { return }
+            let stuck = runner.liveLine.contains("Reflashing") && runner.progress == nil
+            if !stuck {
+                stallSince = nil
+                return
+            }
+            let since = stallSince ?? Date()
+            stallSince = since
+            if attempt < 2 && Date().timeIntervalSince(since) > 15 {
+                stalledForRetry = true
+                runner.cancel()
             }
         }
     }
