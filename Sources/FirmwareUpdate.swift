@@ -43,7 +43,7 @@ struct FirmwareUpdateView: View {
             }
             Divider()
 
-            Text("The firmware comes with XGecu's Xgpro software for Windows: UpdateT48.dat for the T48, updateII.dat for the TL866II+, updateT56.dat for the T56. Get it from XGecu's download page (it's inside the Xgpro installer), or already unpacked from the XGecu_Software repository on GitHub.")
+            Text("The firmware comes with XGecu's Xgpro software for Windows: UpdateT48.dat for the T48, updateII.dat for the TL866II+, updateT56.dat for the T56. Download Xgpro from XGecu or from the XGecu_Software mirror on GitHub, open the .rar with The Unarchiver, then open the XgproVxxxx_Setup.exe inside it the same way. The .dat files are in there.")
                 .fixedSize(horizontal: false, vertical: true)
                 .foregroundColor(.secondary)
             HStack(spacing: 18) {
