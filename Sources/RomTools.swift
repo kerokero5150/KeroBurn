@@ -195,7 +195,7 @@ final class SplitModel: ObservableObject {
         var list: [Int] = [0]
         var s = 1024
         while s <= partSize { s *= 2 }
-        while s <= 16 * 1024 * 1024 && list.count < 9 {
+        while s <= 16 * 1024 * 1024 && list.count < 5 {
             list.append(s)
             s *= 2
         }
@@ -625,7 +625,7 @@ struct RomTools: View {
                                 " to fill a ", chip, " chip."].joined()
             Label(text, systemImage: "square.on.square").foregroundColor(.secondary)
         } else {
-            Label("Each part is " + part + ".", systemImage: "square").foregroundColor(.secondary)
+            Label("Each part is " + part + ".", systemImage: "info.circle").foregroundColor(.secondary)
         }
         if split.unevenFill {
             Text("The chip isn't a whole multiple of the part size. The leftover space is filled with FF.")
