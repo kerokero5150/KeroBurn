@@ -519,7 +519,8 @@ struct RomTools: View {
 
             HStack(spacing: 20) {
                 Picker("Chips:", selection: $split.layout) {
-                    ForEach(RomLayout.allCases) { l in Text(l.title).tag(l) }
+                    Text(RomLayout.pair.title).tag(RomLayout.pair)
+                    Text(RomLayout.quad.title).tag(RomLayout.quad)
                 }
                 .frame(width: 260)
 
