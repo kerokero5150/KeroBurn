@@ -29,6 +29,7 @@ struct FirmwareUpdateView: View {
     @State private var attempt = 0
     @State private var stalledForRetry = false
     @State private var stallSince: Date?
+    @State private var stallNoticed = false   // shown after a few seconds without progress
     @State private var watchdog: Timer?
 
     private var running: Bool { stage == .checking || stage == .updating }
@@ -83,10 +84,6 @@ struct FirmwareUpdateView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!canUpdate)
                 if running { ProgressView().controlSize(.small) }
-                if stage == .updating, let p = runner.progress {
-                    Text(verbatim: String(Int(p * 100)) + "%")
-                        .font(.system(.body, design: .monospaced))
-                }
             }
         }
         .padding(18)
@@ -174,10 +171,18 @@ struct FirmwareUpdateView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Label("Updating. Don't unplug the programmer.", systemImage: "exclamationmark.triangle.fill")
                     .foregroundColor(.orange)
+                if let p = runner.progress {
+                    ProgressView(value: p)
+                        .frame(maxWidth: 420)
+                }
                 if !runner.liveLine.isEmpty {
                     Text(verbatim: runner.liveLine)
                         .font(.system(.callout, design: .monospaced))
                         .foregroundColor(.secondary)
+                }
+                if stallNoticed || stalledForRetry {
+                    Text("Stalled after switching to the bootloader. Retrying in a moment…")
+                        .font(.callout).foregroundColor(.orange)
                 }
                 if attempt > 1 {
                     Text("Second try, starting from bootloader mode.")
@@ -270,6 +275,7 @@ struct FirmwareUpdateView: View {
         attempt += 1
         stalledForRetry = false
         stallSince = nil
+        stallNoticed = false
         stage = .updating
         startWatchdog()
         runner.run(["-F", f.path], input: "y\n") { status, output in
@@ -306,10 +312,12 @@ struct FirmwareUpdateView: View {
             let stuck = runner.liveLine.contains("Reflashing") && runner.progress == nil
             if !stuck {
                 stallSince = nil
+                stallNoticed = false
                 return
             }
             let since = stallSince ?? Date()
             stallSince = since
+            if attempt < 2 && Date().timeIntervalSince(since) > 3 { stallNoticed = true }
             if attempt < 2 && Date().timeIntervalSince(since) > 15 {
                 stalledForRetry = true
                 runner.cancel()
