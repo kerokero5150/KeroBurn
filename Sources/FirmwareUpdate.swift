@@ -272,7 +272,7 @@ struct FirmwareUpdateView: View {
                 // Ask the programmer for its version so the header shows the new one.
                 // Give it a moment to come back on USB after the reset.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    if !runner.isRunning { runner.run(["-k"]) { _, _ in } }
+                    if !runner.isRunning { runner.run(["--version"]) { _, _ in } }
                 }
             } else if stalledForRetry && attempt < 2 {
                 runner.append(.info, "The write stalled after switching to the bootloader. Starting again in bootloader mode.")

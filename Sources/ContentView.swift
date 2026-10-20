@@ -377,7 +377,8 @@ struct DetailPane: View {
                 .disabled(busy)
                 .help("Test a 74 / 4000 series logic chip")
             Button("Check Programmer") {
-                session.runSingle(.programmer, preset: nil, extra: ["-k"])
+                // --version opens the programmer and prints "Found T48 00.1.39 (0x127)", which -k leaves out.
+                session.runSingle(.programmer, preset: nil, extra: ["--version"])
             }
             .disabled(busy)
             Button("Edit Preset…", action: onEdit)
