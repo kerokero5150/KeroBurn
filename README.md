@@ -183,7 +183,7 @@ A word of caution though. If KeroBurn already works fine with your programmer, y
 
 ![The firmware update window with its caution note](docs/firmware-update.png)
 
-On my T48 the first try always stalls right after the switch to the bootloader. KeroBurn notices, stops minipro and starts again from bootloader mode, and the second try goes through in about ten seconds.
+On my T48 the first try always stalls right after the switch to the bootloader. KeroBurn notices, stops minipro and starts again from bootloader mode, and the second try goes through in about ten seconds. On the TL866II+ the update works without any trouble.
 
 **Apple Silicon.** Confirmed working on an M2 Pro Mac mini by a tester. I don't own one myself, so reports are still welcome.
 
