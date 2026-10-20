@@ -24,6 +24,8 @@ struct FirmwareUpdateView: View {
     @State private var file: URL?
     @State private var stage: Stage = .idle
     @State private var targeted = false
+    static let caution = "If KeroBurn already works fine with your programmer, you don't need to update. Updating from KeroBurn works in most cases, but if it goes wrong, Kero's Mac Mods can't help you recover the programmer or cover any damage. Think it over before you update."
+
     @State private var attempt = 0
     @State private var stalledForRetry = false
     @State private var stallSince: Date?
@@ -54,6 +56,15 @@ struct FirmwareUpdateView: View {
                 Link("XGecu downloads", destination: URL(string: "http://www.xgecu.com/download.html")!)
                 Link("XGecu_Software on GitHub", destination: URL(string: "https://github.com/Kreeblah/XGecu_Software")!)
             }
+
+            Label {
+                Text(FirmwareUpdateView.caution)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange)
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.12)))
 
             fileBox
             programmerBox
@@ -238,7 +249,7 @@ struct FirmwareUpdateView: View {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Update the programmer to firmware " + version + "?"
-        var info = "Don't unplug the programmer or quit KeroBurn until it's finished."
+        var info = "Don't unplug the programmer or quit KeroBurn until it's finished.\n\n" + Self.caution
         if relation == "older" {
             info = "This file is OLDER than the firmware already on the programmer. " + info
         }
