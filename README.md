@@ -145,9 +145,11 @@ Chip size starts at the size of the chip in the current preset. If a part is sma
 
 **Logic Test…** at the top right tests 74 and 4000 series chips, about 290 of them, with the test vectors that come with minipro. Pick the chip, put it in the socket with pin 1 at the top left next to the lever, and press Test. Every vector runs once with pull-ups and once with pull-downs, so an output that's stuck or not connected at all gets caught too.
 
-When something's wrong, the window says which pins failed and in how many vectors, and the table marks every cell that didn't match in red. Here I bent pin 13 of a 7402 so it barely touched the socket:
+When something's wrong, the window says which pins failed and in how many vectors, and the table marks every cell that didn't match in red. Here I bent pin 11 of a 7402 out of the socket:
 
 ![Logic test of a 7402 failing on pin 13](docs/logic-test-fail.png)
+
+The red cell is on pin 13, not 11, and that's correct. Pin 11 is an input of the fourth NOR gate and pin 13 is its output. A TTL input that isn't connected floats high, so in the one vector that expects both inputs low, the output comes out low instead of high. Only outputs can be checked, so a red output can mean that pin is bad, or that an input of the same gate isn't making contact.
 
 Only chips in minipro's list can be tested, and they all run at 5V. There's no "guess what this chip is" mode on purpose. Driving the wrong pins of an unknown chip can damage it.
 

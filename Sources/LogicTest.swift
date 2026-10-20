@@ -291,6 +291,10 @@ struct LogicTestView: View {
                 Text(verbatim: "Wrong on " + list.joined(separator: ", "))
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
+                Text("Only outputs are checked. A wrong output can also come from an input of the same gate that isn't making contact.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if !r.rows.isEmpty {
                 vectorTable(r, pins: chip.pins)
