@@ -290,6 +290,7 @@ struct DetailPane: View {
     @State private var showHex = false
     @State private var showTools = false
     @State private var showLogic = false
+    @State private var showFirmware = false
     @State private var readOnOpen = false
     @State private var placementTarget: UUID?
 
@@ -334,6 +335,11 @@ struct DetailPane: View {
         .sheet(isPresented: $showHex) {
             HexViewer(preset: preset, initialFile: session.files.first?.url,
                       initialPlacement: session.files.first?.placement, readOnOpen: readOnOpen)
+                .environmentObject(session)
+                .environmentObject(runner)
+        }
+        .sheet(isPresented: $showFirmware) {
+            FirmwareUpdateView()
                 .environmentObject(session)
                 .environmentObject(runner)
         }
@@ -401,6 +407,10 @@ struct DetailPane: View {
                     .foregroundColor(programmerColor)
                 Text(verbatim: programmerText)
             }
+            Button("Update Firmware…") { showFirmware = true }
+                .controlSize(.small)
+                .disabled(busy)
+                .help("Update the programmer's firmware with the file from Xgpro")
             if let cid = runner.lastChipID, cid.device == preset.device {
                 HStack(spacing: 5) {
                     Image(systemName: "checkmark.circle.fill").foregroundColor(.green)

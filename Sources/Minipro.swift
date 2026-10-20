@@ -122,7 +122,8 @@ final class MiniproRunner: ObservableObject {
 
     var plainText: String { lines.map(\.text).joined(separator: "\n") }
 
-    func run(_ args: [String], completion: @escaping (Int32, [String]) -> Void) {
+    // `input` is typed into minipro's stdin, for its y/n prompts (firmware update).
+    func run(_ args: [String], input: String? = nil, completion: @escaping (Int32, [String]) -> Void) {
         guard !isRunning else { return }
         guard let exe = MiniproLocator.resolve() else {
             append(.error, "minipro not found. Set its path in Settings, or rebuild the app with minipro installed.")
@@ -137,6 +138,12 @@ final class MiniproRunner: ObservableObject {
         let pipe = Pipe()
         p.standardOutput = pipe
         p.standardError = pipe
+        var inputPipe: Pipe?
+        if input != nil {
+            let ip = Pipe()
+            p.standardInput = ip
+            inputPipe = ip
+        }
 
         let startIndex = lines.count
         if let i = args.firstIndex(of: "-p"), i + 1 < args.count {
@@ -179,6 +186,10 @@ final class MiniproRunner: ObservableObject {
             try p.run()
             process = p
             isRunning = true
+            if let ip = inputPipe, let text = input {
+                ip.fileHandleForWriting.write(Data(text.utf8))
+                try? ip.fileHandleForWriting.close()
+            }
         } catch {
             pipe.fileHandleForReading.readabilityHandler = nil
             append(.error, "Could not start minipro: \(error.localizedDescription)")
@@ -269,6 +280,8 @@ final class MiniproRunner: ObservableObject {
         if l.contains("pin test") || l.contains("pin check") { return "Checking pins" }
         if l.contains("chip id") { return "Checking ID" }
         if l.contains("protect off") { return "Unprotecting" }
+        if l.contains("bootloader") { return "Switching to bootloader" }
+        if l.contains("reflash") { return "Updating firmware" }
         if l.contains("erasing") { return "Erasing" }
         if l.contains("writing") { return "Writing" }
         if l.contains("reading") { return "Reading" }
