@@ -432,6 +432,6 @@ final class DeviceCatalog: ObservableObject {
 
 enum Sounds {
     static func success() { NSSound(named: "Glass")?.play() }
-    static func failure() { NSSound(named: "Basso")?.play() }
+    static func failure() { NSSound(named: "Sosumi")?.play() }   // every failure, "No programmer found" included
     static func attention() { NSSound(named: "Tink")?.play() }
 }
