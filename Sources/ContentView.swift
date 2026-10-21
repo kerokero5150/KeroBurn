@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var editing: Preset?
     @State private var editingIsNew = false
     @State private var pendingDelete: Preset?
+    @State private var checkedAtLaunch = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -47,6 +48,15 @@ struct ContentView: View {
                 selection = store.presets.first?.id
             }
             if !catalog.isLoaded { catalog.load() }
+            // Check the programmer once at launch, so the header shows the model and firmware right away.
+            // Wait a moment so the selected preset has loaded its files first
+            // (that's skipped while minipro is busy).
+            if !checkedAtLaunch {
+                checkedAtLaunch = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    session.runSingle(.programmer, preset: nil, extra: ["--version"], quiet: true)
+                }
+            }
         }
         .onChange(of: selection) { newValue in
             savedSelection = newValue?.uuidString ?? ""

@@ -353,7 +353,8 @@ final class Session: ObservableObject {
 
     // MARK: Single-shot commands
 
-    func runSingle(_ kind: JobKind, preset: Preset?, extra: [String] = [], file: URL? = nil) {
+    // quiet: no success sound (used for the programmer check at launch).
+    func runSingle(_ kind: JobKind, preset: Preset?, extra: [String] = [], file: URL? = nil, quiet: Bool = false) {
         guard !isBusy else { return }
         outcome = nil
         identified = nil
@@ -405,7 +406,7 @@ final class Session: ObservableObject {
             if ok {
                 self.outcome = .success("\(label) OK")
                 self.runner.append(.success, "\(label) OK")
-                Sounds.success()
+                if !quiet { Sounds.success() }
             } else {
                 self.outcome = .failure("\(label) failed (exit \(status))")
                 self.runner.append(.error, "\(label) failed (exit \(status))")
