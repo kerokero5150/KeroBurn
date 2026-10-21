@@ -22,6 +22,12 @@ struct KeroBurnApp: App {
             CommandGroup(replacing: .appInfo) {
                 Button("About \(AppInfo.name)") { AboutPanel.show() }
             }
+            CommandMenu("Tools") {
+                Button("Split / Join…") { ToolMenu.open(.splitJoin) }
+                Button("Logic Test…") { ToolMenu.open(.logicTest) }
+                Divider()
+                Button("Programmer Firmware…") { ToolMenu.open(.firmware) }
+            }
         }
 
         Settings {
@@ -29,6 +35,18 @@ struct KeroBurnApp: App {
                 .environmentObject(store)
                 .environmentObject(catalog)
         }
+    }
+}
+
+// Menu items can't reach the window's sheets directly, so they post a notification
+// that the detail pane listens for.
+enum ToolMenu: String {
+    case splitJoin, logicTest, firmware
+
+    static let notification = Notification.Name("KeroBurnOpenTool")
+
+    static func open(_ tool: ToolMenu) {
+        NotificationCenter.default.post(name: notification, object: tool.rawValue)
     }
 }
 

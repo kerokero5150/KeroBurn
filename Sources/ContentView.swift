@@ -348,6 +348,14 @@ struct DetailPane: View {
                 .environmentObject(session)
                 .environmentObject(runner)
         }
+        .onReceive(NotificationCenter.default.publisher(for: ToolMenu.notification)) { note in
+            guard !busy, let raw = note.object as? String, let tool = ToolMenu(rawValue: raw) else { return }
+            switch tool {
+            case .splitJoin: showTools = true
+            case .logicTest: showLogic = true
+            case .firmware: showFirmware = true
+            }
+        }
         .sheet(isPresented: $showFirmware) {
             FirmwareUpdateView()
                 .environmentObject(session)
