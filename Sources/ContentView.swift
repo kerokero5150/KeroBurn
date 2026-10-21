@@ -418,10 +418,13 @@ struct DetailPane: View {
                     .foregroundColor(programmerColor)
                 Text(verbatim: programmerText)
             }
-            Button("Update Firmware…") { showFirmware = true }
-                .controlSize(.small)
-                .disabled(busy)
-                .help("Update the programmer's firmware with the file from Xgpro")
+            // Low-key on purpose: most people never need to update.
+            Button { showFirmware = true } label: {
+                Image(systemName: "info.circle")
+            }
+            .buttonStyle(.borderless)
+            .disabled(busy)
+            .help("Programmer firmware")
             if let cid = runner.lastChipID, cid.device == preset.device {
                 HStack(spacing: 5) {
                     Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
