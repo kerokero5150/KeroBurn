@@ -227,6 +227,17 @@ final class PresetStore: ObservableObject {
         }
     }
 
+    // Drag a folder onto another one: it takes that folder's place.
+    func moveFolder(_ id: UUID, before target: UUID) {
+        guard id != target, let from = folders.firstIndex(where: { $0.id == id }) else { return }
+        var list = folders
+        let f = list.remove(at: from)
+        let to = list.firstIndex(where: { $0.id == target }) ?? list.count
+        // Dragging downward lands after the target, upward lands before it.
+        list.insert(f, at: from <= to ? min(to + 1, list.count) : to)
+        folders = list
+    }
+
     // Reorder within one folder (or the top level), leaving the others where they are.
     func movePresets(in folder: UUID?, from: IndexSet, to: Int) {
         var group = presets.filter { $0.folder == folder }
