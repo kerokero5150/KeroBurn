@@ -169,6 +169,8 @@ Presets can also remember their files. Line them up (with offsets if you want), 
 
 While the app is open, every preset keeps its own file list, saved or not, so switching back and forth doesn't lose anything.
 
+**Programming voltages.** The ⚡ button next to the options sets VPP, VDD write, VCC verify and the pulse delay, the same four values Xgpro lets you edit. Left alone, minipro uses its own values for the chip, and the popover shows what those are. Change one and the bolt turns orange, so you can tell at a glance that a preset isn't on the defaults. These only matter for chips written with a high voltage, like UV EPROMs and GAL/ATF parts. Some old 2716/2732/2764 EPROMs want 21V VPP, which the T48 can do. Check the datasheet before you raise anything, too much voltage kills a chip.
+
 **Folders.** Press the folder button at the bottom of the sidebar to make a folder, with an emoji if you like. Drag presets onto a folder to put them in, or drop one on the empty part of the list to take it back out. Folders can be dragged into a different order too. Right-click a folder to rename it or change its emoji. Deleting a folder keeps the presets that were in it.
 
 Presets live in `~/Library/Application Support/KeroBurn/presets.json`, and folders in `folders.json` next to it. You can edit it by hand and reload it from Settings.
