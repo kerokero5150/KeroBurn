@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var checkedAtLaunch = false
     @State private var dropFolder: UUID?   // folder under a drag, for the highlight
     @State private var dropRow: UUID?      // preset under a drag
+    @State private var dropTopLevel = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -109,6 +110,20 @@ struct ContentView: View {
                 }
             }
             .listStyle(.sidebar)
+            .onDrop(of: [UTType.plainText], isTargeted: $dropTopLevel) { providers in
+                // Dropped on the empty part of the list: out of any folder, to the end.
+                dropItem(providers, preset: { id in store.place(id, in: nil, at: nil) })
+            }
+            .overlay(alignment: .bottom) {
+                if dropTopLevel && dropFolder == nil && dropRow == nil {
+                    Text("Drop to take it out of the folder")
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.accentColor.opacity(0.25)))
+                        .padding(.bottom, 8)
+                }
+            }
 
             Divider()
             HStack(spacing: 4) {
