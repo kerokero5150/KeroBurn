@@ -1115,24 +1115,35 @@ final class EmojiPickerOpener: NSObject {
 // Empty means minipro's own value for the chip. Only used when writing.
 struct VoltageEditor: View {
     @Binding var preset: Preset
+    @State private var defaults: ChipVoltages?
+    @State private var loading = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Grid2(label: "VPP") {
-                choicePicker($preset.vpp, Preset.vppChoices)
+                choicePicker($preset.vpp, Preset.vppChoices, chipValue: defaults?.vpp, unit: "V")
             }
             Grid2(label: "VDD write") {
-                choicePicker($preset.vdd, Preset.vccChoices)
+                choicePicker($preset.vdd, Preset.vccChoices, chipValue: defaults?.vdd, unit: "V")
             }
             Grid2(label: "VCC verify") {
-                choicePicker($preset.vcc, Preset.vccChoices)
+                choicePicker($preset.vcc, Preset.vccChoices, chipValue: defaults?.vcc, unit: "V")
             }
             Grid2(label: "Pulse delay") {
                 HStack(spacing: 6) {
-                    TextField("Chip default", text: pulseText)
-                        .frame(width: 110)
+                    TextField(defaultLabel(defaults?.pulse, unit: ""), text: pulseText)
+                        .frame(width: 150)
                     Text("µs").foregroundColor(.secondary)
                 }
+            }
+            if loading {
+                Text("Asking minipro for this chip's defaults…")
+                    .font(.caption).foregroundColor(.secondary)
+            } else if let d = defaults, !d.usesVoltages {
+                Text("minipro has no programming voltages for " + preset.device + ", so these settings won't do anything for it.")
+                    .font(.caption).foregroundColor(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: 300, alignment: .leading)
             }
             Text("Only chips written with a high voltage use these (UV EPROMs, GAL/ATF). Some old 2716/2732/2764 parts want 21V VPP. Check the datasheet first: too much voltage kills a chip.")
                 .font(.caption)
@@ -1148,18 +1159,38 @@ struct VoltageEditor: View {
                 }
             }
         }
+        .onAppear(perform: loadDefaults)
+        .onChange(of: preset.device) { _ in loadDefaults() }
     }
 
-    private func choicePicker(_ value: Binding<String>, _ choices: [String]) -> some View {
+    private func loadDefaults() {
+        let device = preset.device
+        defaults = nil
+        guard !device.isEmpty else { return }
+        loading = true
+        ChipVoltages.load(device) { v in
+            guard device == preset.device else { return }
+            defaults = v
+            loading = false
+        }
+    }
+
+    // "Chip default (18 V)" once minipro has told us, plain "Chip default" before that.
+    private func defaultLabel(_ value: String?, unit: String) -> String {
+        guard let v = value else { return "Chip default" }
+        return unit.isEmpty ? "Chip default (" + v + ")" : "Chip default (" + v + " " + unit + ")"
+    }
+
+    private func choicePicker(_ value: Binding<String>, _ choices: [String], chipValue: String?, unit: String) -> some View {
         Picker("", selection: value) {
-            Text("Chip default").tag("")
+            Text(verbatim: defaultLabel(chipValue, unit: unit)).tag("")
             Divider()
             ForEach(choices, id: \.self) { v in
                 Text(verbatim: v + " V").tag(v)
             }
         }
         .labelsHidden()
-        .frame(width: 150)
+        .frame(width: 190)
     }
 
     // Digits only, 1 to 65535.
@@ -1212,5 +1243,59 @@ struct VoltageButton: View {
             VoltageEditor(preset: $preset)
                 .padding(14)
         }
+    }
+}
+
+// A chip's own programming values, from "minipro -d <device>".
+struct ChipVoltages {
+    var vpp: String?
+    var vdd: String?
+    var vcc: String?
+    var pulse: String?
+
+    var usesVoltages: Bool { vpp != nil || vdd != nil || vcc != nil }
+
+    private static var cache: [String: ChipVoltages] = [:]
+
+    // Runs off the main thread; completion is called on the main thread.
+    static func load(_ device: String, completion: @escaping (ChipVoltages) -> Void) {
+        if let hit = cache[device] {
+            completion(hit)
+            return
+        }
+        guard let exe = MiniproLocator.resolve() else {
+            completion(ChipVoltages())
+            return
+        }
+        let args = MiniproLocator.databaseArgs(for: exe) + ["-d", device]
+        DispatchQueue.global(qos: .userInitiated).async {
+            let out = MiniproLocator.runSync(exe: exe, args: args).output
+            let v = parse(out)
+            DispatchQueue.main.async {
+                cache[device] = v
+                completion(v)
+            }
+        }
+    }
+
+    // Handles both styles minipro has used:
+    //   "VPP programming voltage: 18V"   / "Default VPP programming voltage: 18 V"
+    //   "VDD write voltage: 5.5V"        / "Default VDD write voltage: 5.5 V"
+    //   "VCC verify voltage: 5V"         / "Default VCC verify voltage: 5 V"
+    //   "Pulse delay: 1000us"            / "Default write pulse: 1000 us"
+    static func parse(_ text: String) -> ChipVoltages {
+        func find(_ pattern: String) -> String? {
+            guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+            let ns = text as NSString
+            guard let m = re.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)),
+                  m.numberOfRanges > 1 else { return nil }
+            return ns.substring(with: m.range(at: 1))
+        }
+        var v = ChipVoltages()
+        v.vpp = find("VPP programming voltage:\\s*([0-9.]+)")
+        v.vdd = find("VDD write voltage:\\s*([0-9.]+)")
+        v.vcc = find("VCC verify voltage:\\s*([0-9.]+)")
+        v.pulse = find("(?:Pulse delay|write pulse):\\s*([0-9]+)")
+        return v
     }
 }
