@@ -98,7 +98,7 @@ struct ContentView: View {
                                     dropItem(providers, preset: { id in store.place(id, in: folder.id, at: nil) },
                                              folder: { id in store.moveFolder(id, before: folder.id) })
                                 }
-                                .onDrag { NSItemProvider(object: ("folder:" + folder.id.uuidString) as NSString) }
+                                .itemProvider { NSItemProvider(object: ("folder:" + folder.id.uuidString) as NSString) }
                                 .contextMenu {
                                     Button("Edit Folder…") { editFolder(folder) }
                                     Button("Delete Folder (keep its presets)") { store.removeFolder(folder.id) }
@@ -189,7 +189,8 @@ struct ContentView: View {
         return ForEach(items) { preset in
             PresetRow(preset: preset, known: catalog.knows(preset.device))
                 .tag(preset.id)
-                .onDrag { NSItemProvider(object: ("preset:" + preset.id.uuidString) as NSString) }
+                // itemProvider, not onDrag: onDrag on a List row eats the click that selects it.
+                .itemProvider { NSItemProvider(object: ("preset:" + preset.id.uuidString) as NSString) }
                 .background(dropRow == preset.id ? Color.accentColor.opacity(0.2) : Color.clear)
                 .onDrop(of: [UTType.plainText], isTargeted: Binding(
                     get: { dropRow == preset.id },
