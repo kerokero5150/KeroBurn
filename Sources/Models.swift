@@ -87,6 +87,12 @@ struct Preset: Codable, Identifiable, Hashable {
     var icon = ""               // optional emoji shown in the sidebar
     var files: [SavedFile] = [] // files this preset loads by itself, in order
     var folder: UUID?           // sidebar folder, nil = not in a folder
+    var vpp = ""                // --vpp in volts, "" = the chip's own value from the database
+
+    // Values minipro accepts for --vpp. Not every chip/programmer takes all of them:
+    // 19 is TL866II+ only, 21 and 25 are for T48 parts like old 21V EPROMs.
+    static let vppChoices = ["9", "9.5", "10", "11", "11.5", "12", "12.5", "13", "13.5",
+                             "14", "14.5", "15.5", "16", "16.5", "17", "18", "19", "21", "25"]
 
     init(name: String, device: String, note: String = "",
          skipSizeCheck: Bool = false, ignoreIDError: Bool = false, noVerify: Bool = false) {
@@ -114,6 +120,7 @@ struct Preset: Codable, Identifiable, Hashable {
         files = try c.decodeIfPresent([SavedFile].self, forKey: .files) ?? []
         skipPinCheck = try c.decodeIfPresent(Bool.self, forKey: .skipPinCheck) ?? false
         folder = try c.decodeIfPresent(UUID.self, forKey: .folder)
+        vpp = try c.decodeIfPresent(String.self, forKey: .vpp) ?? ""
     }
 
     // PLDs read and write JEDEC files instead of raw binaries.

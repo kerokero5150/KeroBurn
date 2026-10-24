@@ -807,6 +807,7 @@ struct DetailPane: View {
                 Toggle("Protect after write (-P)", isOn: $preset.protectAfter)
                 Toggle("Ignore pin check", isOn: $preset.skipPinCheck)
                     .help("When off, the pin contact test (-z) runs before every write and stops on a bad contact.")
+                VppPicker(vpp: $preset.vpp)
                 Spacer()
             }
         }
@@ -1107,5 +1108,22 @@ final class EmojiPickerOpener: NSObject {
     @objc func open() {
         field.window?.makeFirstResponder(field)
         NSApp.orderFrontCharacterPalette(nil)
+    }
+}
+
+// Programming voltage for UV EPROMs and GAL/ATF parts. Empty means minipro's own value for the chip.
+struct VppPicker: View {
+    @Binding var vpp: String
+
+    var body: some View {
+        Picker("VPP:", selection: $vpp) {
+            Text("Chip default").tag("")
+            Divider()
+            ForEach(Preset.vppChoices, id: \.self) { v in
+                Text(verbatim: v + " V").tag(v)
+            }
+        }
+        .frame(width: 150)
+        .help("Programming voltage (--vpp). Only used by chips that are written with a high voltage, like UV EPROMs and GAL/ATF. Check the datasheet first: too much voltage kills a chip.")
     }
 }
