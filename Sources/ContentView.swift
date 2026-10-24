@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var editingIsNew = false
     @State private var pendingDelete: Preset?
     @State private var checkedAtLaunch = false
+    @State private var dropFolder: UUID?   // folder under a drag, for the highlight
 
     var body: some View {
         HStack(spacing: 0) {
@@ -74,12 +75,27 @@ struct ContentView: View {
         VStack(spacing: 0) {
             BrandHeader()
             List(selection: $selection) {
-                Section(header: Text("Presets")) {
+                Section(header: Text("Presets")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onDrop(of: [UTType.plainText], isTargeted: nil) { providers in
+                                // Dropping on the header takes a preset out of its folder.
+                                dropPreset(providers) { id in store.place(id, in: nil, at: nil) }
+                            }) {
                     ForEach($store.folders) { $folder in
                         DisclosureGroup(isExpanded: $folder.expanded) {
                             presetRows(in: folder.id)
                         } label: {
-                            Label(folder.name, systemImage: "folder")
+                            Label(folder.name, systemImage: dropFolder == folder.id ? "folder.fill" : "folder")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                                .background(dropFolder == folder.id ? Color.accentColor.opacity(0.2) : Color.clear)
+                                .onDrop(of: [UTType.plainText], isTargeted: Binding(
+                                    get: { dropFolder == folder.id },
+                                    set: { on in dropFolder = on ? folder.id : (dropFolder == folder.id ? nil : dropFolder) }
+                                )) { providers in
+                                    dropPreset(providers) { id in store.place(id, in: folder.id, at: nil) }
+                                }
                                 .contextMenu {
                                     Button("Rename…") { renameFolder(folder) }
                                     Button("Delete Folder (keep its presets)") { store.removeFolder(folder.id) }
@@ -170,6 +186,7 @@ struct ContentView: View {
         return ForEach(items) { preset in
             PresetRow(preset: preset, known: catalog.knows(preset.device))
                 .tag(preset.id)
+                .onDrag { NSItemProvider(object: preset.id.uuidString as NSString) }
                 .contextMenu {
                     Button("Edit…") { beginEdit(preset) }
                     Button("Duplicate") { duplicate(preset) }
@@ -193,9 +210,23 @@ struct ContentView: View {
                     Button("Delete…") { pendingDelete = preset }
                 }
         }
-        .onMove { from, to in
-            store.movePresets(in: folder, from: from, to: to)
+        .onInsert(of: [UTType.plainText]) { index, providers in
+            // Dropped between rows: reorder, or move in from another folder.
+            _ = dropPreset(providers) { id in store.place(id, in: folder, at: index) }
         }
+    }
+
+    // A dragged preset carries its UUID as text. Anything else is ignored.
+    private func dropPreset(_ providers: [NSItemProvider], _ handle: @escaping (UUID) -> Void) -> Bool {
+        guard !session.isBusy, let provider = providers.first else { return false }
+        _ = provider.loadObject(ofClass: NSString.self) { obj, _ in
+            guard let text = obj as? NSString, let id = UUID(uuidString: text as String) else { return }
+            DispatchQueue.main.async {
+                if store.index(of: id) != nil { handle(id) }
+                dropFolder = nil
+            }
+        }
+        return true
     }
 
     // MARK: Folder actions

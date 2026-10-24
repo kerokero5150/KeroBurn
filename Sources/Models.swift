@@ -196,6 +196,37 @@ final class PresetStore: ObservableObject {
         }
     }
 
+    // Drag and drop: put a preset into `folder` (nil = top level) at position `index`
+    // among that folder's presets. Works for reordering inside a folder too.
+    func place(_ presetID: UUID, in folder: UUID?, at index: Int?) {
+        guard let from = self.index(of: presetID) else { return }
+        var all = presets
+        var item = all[from]
+        let sameGroup = item.folder == folder
+        let oldPos = all[..<from].filter { $0.folder == folder }.count
+        all.remove(at: from)
+        item.folder = folder
+
+        let slots = all.indices.filter { all[$0].folder == folder }
+        var pos = index ?? slots.count
+        if sameGroup && pos > oldPos { pos -= 1 }   // the list was counted with the item still in it
+        pos = max(0, min(pos, slots.count))
+
+        let target: Int
+        if pos < slots.count {
+            target = slots[pos]
+        } else if let last = slots.last {
+            target = last + 1
+        } else {
+            target = all.count
+        }
+        all.insert(item, at: target)
+        presets = all
+        if let f = folder, let fi = folders.firstIndex(where: { $0.id == f }) {
+            folders[fi].expanded = true
+        }
+    }
+
     // Reorder within one folder (or the top level), leaving the others where they are.
     func movePresets(in folder: UUID?, from: IndexSet, to: Int) {
         var group = presets.filter { $0.folder == folder }
