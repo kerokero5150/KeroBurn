@@ -112,14 +112,8 @@ struct PresetEditor: View {
                 TextField("Optional, e.g. which board this is for", text: $draft.note)
             }
 
-            row("VPP") {
-                VStack(alignment: .leading, spacing: 2) {
-                    VppPicker(vpp: $draft.vpp)
-                    Text("Only for chips written with a high voltage (UV EPROMs, GAL/ATF). Some old 2716/2732/2764 parts want 21V or more. Check the datasheet; too much voltage kills a chip.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            row("Voltages") {
+                VoltageEditor(preset: $draft)
             }
 
             row("Options") {

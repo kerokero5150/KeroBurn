@@ -250,7 +250,7 @@ final class Session: ObservableObject {
             if preset.unprotect { args.append("-u") }
             if preset.protectAfter { args.append("-P") }
             if !preset.skipPinCheck { args.append("-z") }
-            if !preset.vpp.isEmpty { args += ["--vpp", preset.vpp] }
+            args += preset.voltageArgs
         } else {
             args += ["-m", file.url.path]
         }

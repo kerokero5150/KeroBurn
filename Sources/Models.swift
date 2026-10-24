@@ -88,6 +88,34 @@ struct Preset: Codable, Identifiable, Hashable {
     var files: [SavedFile] = [] // files this preset loads by itself, in order
     var folder: UUID?           // sidebar folder, nil = not in a folder
     var vpp = ""                // --vpp in volts, "" = the chip's own value from the database
+    var vdd = ""                // --vdd, VCC while writing
+    var vcc = ""                // --vcc, VCC while verifying
+    var pulse = ""              // --pulse, programming pulse in microseconds
+
+    var hasVoltageOverrides: Bool { !vpp.isEmpty || !vdd.isEmpty || !vcc.isEmpty || !pulse.isEmpty }
+
+    // Short label for the main window, e.g. "VPP 21V, pulse 500us"
+    var voltageSummary: String {
+        var parts: [String] = []
+        if !vpp.isEmpty { parts.append("VPP " + vpp + "V") }
+        if !vdd.isEmpty { parts.append("VDD " + vdd + "V") }
+        if !vcc.isEmpty { parts.append("VCC " + vcc + "V") }
+        if !pulse.isEmpty { parts.append("pulse " + pulse + "us") }
+        return parts.joined(separator: ", ")
+    }
+
+    var voltageArgs: [String] {
+        var a: [String] = []
+        if !vpp.isEmpty { a += ["--vpp", vpp] }
+        if !vdd.isEmpty { a += ["--vdd", vdd] }
+        if !vcc.isEmpty { a += ["--vcc", vcc] }
+        if !pulse.isEmpty { a += ["--pulse", pulse] }
+        return a
+    }
+
+    // VDD write / VCC verify values minipro accepts on the T48 and TL866II+.
+    static let vccChoices = ["1.2", "1.8", "2.5", "3", "3.3", "4", "4.5", "4.75", "5",
+                             "5.25", "5.5", "5.75", "6", "6.25", "6.5"]
 
     // Values minipro accepts for --vpp. Not every chip/programmer takes all of them:
     // 19 is TL866II+ only, 21 and 25 are for T48 parts like old 21V EPROMs.
@@ -121,6 +149,9 @@ struct Preset: Codable, Identifiable, Hashable {
         skipPinCheck = try c.decodeIfPresent(Bool.self, forKey: .skipPinCheck) ?? false
         folder = try c.decodeIfPresent(UUID.self, forKey: .folder)
         vpp = try c.decodeIfPresent(String.self, forKey: .vpp) ?? ""
+        vdd = try c.decodeIfPresent(String.self, forKey: .vdd) ?? ""
+        vcc = try c.decodeIfPresent(String.self, forKey: .vcc) ?? ""
+        pulse = try c.decodeIfPresent(String.self, forKey: .pulse) ?? ""
     }
 
     // PLDs read and write JEDEC files instead of raw binaries.

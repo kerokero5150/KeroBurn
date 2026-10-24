@@ -807,7 +807,7 @@ struct DetailPane: View {
                 Toggle("Protect after write (-P)", isOn: $preset.protectAfter)
                 Toggle("Ignore pin check", isOn: $preset.skipPinCheck)
                     .help("When off, the pin contact test (-z) runs before every write and stops on a bad contact.")
-                VppPicker(vpp: $preset.vpp)
+                VoltageButton(preset: $preset)
                 Spacer()
             }
         }
@@ -1111,19 +1111,104 @@ final class EmojiPickerOpener: NSObject {
     }
 }
 
-// Programming voltage for UV EPROMs and GAL/ATF parts. Empty means minipro's own value for the chip.
-struct VppPicker: View {
-    @Binding var vpp: String
+// Programming parameters, like Xgpro's VPP / VDD write / VCC verify / pulse delay.
+// Empty means minipro's own value for the chip. Only used when writing.
+struct VoltageEditor: View {
+    @Binding var preset: Preset
 
     var body: some View {
-        Picker("VPP:", selection: $vpp) {
+        VStack(alignment: .leading, spacing: 8) {
+            Grid2(label: "VPP") {
+                choicePicker($preset.vpp, Preset.vppChoices)
+            }
+            Grid2(label: "VDD write") {
+                choicePicker($preset.vdd, Preset.vccChoices)
+            }
+            Grid2(label: "VCC verify") {
+                choicePicker($preset.vcc, Preset.vccChoices)
+            }
+            Grid2(label: "Pulse delay") {
+                HStack(spacing: 6) {
+                    TextField("Chip default", text: pulseText)
+                        .frame(width: 110)
+                    Text("µs").foregroundColor(.secondary)
+                }
+            }
+            Text("Only chips written with a high voltage use these (UV EPROMs, GAL/ATF). Some old 2716/2732/2764 parts want 21V VPP. Check the datasheet first: too much voltage kills a chip.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 300, alignment: .leading)
+            if preset.hasVoltageOverrides {
+                Button("Back to Chip Defaults") {
+                    preset.vpp = ""
+                    preset.vdd = ""
+                    preset.vcc = ""
+                    preset.pulse = ""
+                }
+            }
+        }
+    }
+
+    private func choicePicker(_ value: Binding<String>, _ choices: [String]) -> some View {
+        Picker("", selection: value) {
             Text("Chip default").tag("")
             Divider()
-            ForEach(Preset.vppChoices, id: \.self) { v in
+            ForEach(choices, id: \.self) { v in
                 Text(verbatim: v + " V").tag(v)
             }
         }
+        .labelsHidden()
         .frame(width: 150)
-        .help("Programming voltage (--vpp). Only used by chips that are written with a high voltage, like UV EPROMs and GAL/ATF. Check the datasheet first: too much voltage kills a chip.")
+    }
+
+    // Digits only, 1 to 65535.
+    private var pulseText: Binding<String> {
+        Binding(
+            get: { preset.pulse },
+            set: { text in
+                let digits = text.filter(\.isNumber)
+                if let n = Int(digits), n > 0 {
+                    preset.pulse = String(min(n, 65535))
+                } else {
+                    preset.pulse = ""
+                }
+            }
+        )
+    }
+}
+
+// Label column + control, lined up.
+struct Grid2<Content: View>: View {
+    let label: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(label).frame(width: 80, alignment: .trailing)
+            content()
+        }
+    }
+}
+
+// Main window: a button that shows what's overridden and opens the editor.
+struct VoltageButton: View {
+    @Binding var preset: Preset
+    @State private var open = false
+
+    var body: some View {
+        Button {
+            open = true
+        } label: {
+            Text(verbatim: preset.hasVoltageOverrides ? preset.voltageSummary : "Voltages…")
+                .lineLimit(1)
+        }
+        .buttonStyle(.bordered)
+        .tint(preset.hasVoltageOverrides ? .orange : nil)
+        .help("VPP, VDD write, VCC verify and pulse delay, like Xgpro's programming parameters")
+        .popover(isPresented: $open, arrowEdge: .bottom) {
+            VoltageEditor(preset: $preset)
+                .padding(14)
+        }
     }
 }
