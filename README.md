@@ -31,7 +31,9 @@ Drop more than one file and they get written in order, one chip each. After ever
 
 ![Waiting for the next chip in a 4-chip run](docs/chip-swap.png)
 
-Under the preset name you'll see which programmer is connected and its firmware, plus the chip ID once it's been checked. That's there on purpose, so a screenshot posted when asking for help already says what hardware it's on.
+If a chip in the middle of a run fails, say a bad pin contact on the fourth chip, the run doesn't end. A red bar asks you to reseat or replace that chip and press Retry, and it carries on from there. The chips before it stay done. You can also right-click a file and pick Write from Here to start part way down the list.
+
+Under the preset name you'll see which programmer is connected and its firmware, plus the chip ID once it's been checked. That's there on purpose, so a screenshot posted when asking for help already says what hardware it's on. KeroBurn checks the programmer when it starts, so this is filled in right away.
 
 ## Writing at an address (Offset…)
 
@@ -167,7 +169,9 @@ Presets can also remember their files. Line them up (with offsets if you want), 
 
 While the app is open, every preset keeps its own file list, saved or not, so switching back and forth doesn't lose anything.
 
-Presets live in `~/Library/Application Support/KeroBurn/presets.json`. You can edit it by hand and reload it from Settings.
+**Folders.** Press the folder button at the bottom of the sidebar to make a folder, with an emoji if you like. Drag presets onto a folder to put them in, or drop one on the empty part of the list to take it back out. Folders can be dragged into a different order too. Right-click a folder to rename it or change its emoji. Deleting a folder keeps the presets that were in it.
+
+Presets live in `~/Library/Application Support/KeroBurn/presets.json`, and folders in `folders.json` next to it. You can edit it by hand and reload it from Settings.
 
 ## Logs
 

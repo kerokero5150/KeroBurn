@@ -11,7 +11,7 @@ set -euo pipefail
 
 APP_NAME="KeroBurn"
 BUNDLE_ID="com.kerosmm.keroburn"
-VERSION="1.0b5"
+VERSION="1.0b6"
 MIN_MACOS="12.0"
 
 cd "$(dirname "$0")"
