@@ -50,6 +50,13 @@ struct SavedFile: Codable, Hashable {
     var placement: Placement?
 }
 
+// A folder in the sidebar that groups presets.
+struct PresetFolder: Codable, Identifiable, Hashable {
+    var id = UUID()
+    var name: String
+    var expanded = true
+}
+
 // A saved chip setup: a friendly name plus the exact minipro device string.
 struct Preset: Codable, Identifiable, Hashable {
     var id = UUID()
@@ -64,6 +71,7 @@ struct Preset: Codable, Identifiable, Hashable {
     var skipPinCheck = false    // when false, a pin contact test (-z) runs before every write
     var icon = ""               // optional emoji shown in the sidebar
     var files: [SavedFile] = [] // files this preset loads by itself, in order
+    var folder: UUID?           // sidebar folder, nil = not in a folder
 
     init(name: String, device: String, note: String = "",
          skipSizeCheck: Bool = false, ignoreIDError: Bool = false, noVerify: Bool = false) {
@@ -90,6 +98,7 @@ struct Preset: Codable, Identifiable, Hashable {
         icon = try c.decodeIfPresent(String.self, forKey: .icon) ?? ""
         files = try c.decodeIfPresent([SavedFile].self, forKey: .files) ?? []
         skipPinCheck = try c.decodeIfPresent(Bool.self, forKey: .skipPinCheck) ?? false
+        folder = try c.decodeIfPresent(UUID.self, forKey: .folder)
     }
 
     // PLDs read and write JEDEC files instead of raw binaries.
@@ -121,14 +130,83 @@ final class PresetStore: ObservableObject {
         didSet { save() }
     }
 
+    // Kept in their own file so presets.json stays a plain list.
+    @Published var folders: [PresetFolder] = [] {
+        didSet { saveFolders() }
+    }
+
     let fileURL: URL
+    let foldersURL: URL
 
     init() {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let dir = base.appendingPathComponent(AppInfo.name, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         fileURL = dir.appendingPathComponent("presets.json")
+        foldersURL = dir.appendingPathComponent("folders.json")
         load()
+        loadFolders()
+        // A preset pointing at a folder that no longer exists goes back to the top level,
+        // so it can't disappear from the sidebar.
+        let known = Set(folders.map(\.id))
+        if presets.contains(where: { $0.folder != nil && !known.contains($0.folder!) }) {
+            var list = presets
+            for i in list.indices where list[i].folder != nil && !known.contains(list[i].folder!) {
+                list[i].folder = nil
+            }
+            presets = list
+        }
+    }
+
+    func loadFolders() {
+        if let data = try? Data(contentsOf: foldersURL),
+           let list = try? JSONDecoder().decode([PresetFolder].self, from: data) {
+            folders = list
+        }
+    }
+
+    func saveFolders() {
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+        if let data = try? enc.encode(folders) {
+            try? data.write(to: foldersURL, options: .atomic)
+        }
+    }
+
+    @discardableResult
+    func addFolder(named name: String) -> PresetFolder {
+        let f = PresetFolder(name: name)
+        folders.append(f)
+        return f
+    }
+
+    // Removing a folder keeps its presets; they move back to the top level.
+    func removeFolder(_ id: UUID) {
+        var list = presets
+        for i in list.indices where list[i].folder == id { list[i].folder = nil }
+        presets = list
+        folders.removeAll { $0.id == id }
+    }
+
+    func setFolder(_ folder: UUID?, for presetID: UUID) {
+        guard let i = index(of: presetID) else { return }
+        presets[i].folder = folder
+        if let f = folder, let fi = folders.firstIndex(where: { $0.id == f }) {
+            folders[fi].expanded = true
+        }
+    }
+
+    // Reorder within one folder (or the top level), leaving the others where they are.
+    func movePresets(in folder: UUID?, from: IndexSet, to: Int) {
+        var group = presets.filter { $0.folder == folder }
+        group.move(fromOffsets: from, toOffset: to)
+        var all = presets
+        var next = 0
+        for i in all.indices where all[i].folder == folder {
+            all[i] = group[next]
+            next += 1
+        }
+        presets = all
     }
 
     func load() {
@@ -159,6 +237,7 @@ final class PresetStore: ObservableObject {
 
     func resetToDefaults() {
         presets = Preset.defaults
+        folders = []
     }
 
     func index(of id: UUID?) -> Int? {

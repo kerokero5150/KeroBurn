@@ -75,19 +75,18 @@ struct ContentView: View {
             BrandHeader()
             List(selection: $selection) {
                 Section(header: Text("Presets")) {
-                    ForEach(store.presets) { preset in
-                        PresetRow(preset: preset, known: catalog.knows(preset.device))
-                            .tag(preset.id)
-                            .contextMenu {
-                                Button("Edit…") { beginEdit(preset) }
-                                Button("Duplicate") { duplicate(preset) }
-                                Divider()
-                                Button("Delete…") { pendingDelete = preset }
-                            }
+                    ForEach($store.folders) { $folder in
+                        DisclosureGroup(isExpanded: $folder.expanded) {
+                            presetRows(in: folder.id)
+                        } label: {
+                            Label(folder.name, systemImage: "folder")
+                                .contextMenu {
+                                    Button("Rename…") { renameFolder(folder) }
+                                    Button("Delete Folder (keep its presets)") { store.removeFolder(folder.id) }
+                                }
+                        }
                     }
-                    .onMove { from, to in
-                        store.presets.move(fromOffsets: from, toOffset: to)
-                    }
+                    presetRows(in: nil)
                 }
             }
             .listStyle(.sidebar)
@@ -106,6 +105,8 @@ struct ContentView: View {
                 } label: { Image(systemName: "pencil") }
                     .help("Edit preset")
                     .disabled(selectedPreset == nil)
+                Button { newFolder() } label: { Image(systemName: "folder.badge.plus") }
+                    .help("New folder")
                 Spacer()
                 catalogStatus
             }
@@ -163,11 +164,60 @@ struct ContentView: View {
         )
     }
 
+    // Presets in one folder (nil = top level), each reorderable within its own group.
+    private func presetRows(in folder: UUID?) -> some View {
+        let items = store.presets.filter { $0.folder == folder }
+        return ForEach(items) { preset in
+            PresetRow(preset: preset, known: catalog.knows(preset.device))
+                .tag(preset.id)
+                .contextMenu {
+                    Button("Edit…") { beginEdit(preset) }
+                    Button("Duplicate") { duplicate(preset) }
+                    Menu("Move to Folder") {
+                        Button("None (top level)") { store.setFolder(nil, for: preset.id) }
+                            .disabled(preset.folder == nil)
+                        if !store.folders.isEmpty { Divider() }
+                        ForEach(store.folders) { f in
+                            Button(f.name) { store.setFolder(f.id, for: preset.id) }
+                                .disabled(preset.folder == f.id)
+                        }
+                        Divider()
+                        Button("New Folder…") {
+                            if let name = FolderPrompt.ask(title: "Create a new folder?", button: "Create", initial: "") {
+                                let f = store.addFolder(named: name)
+                                store.setFolder(f.id, for: preset.id)
+                            }
+                        }
+                    }
+                    Divider()
+                    Button("Delete…") { pendingDelete = preset }
+                }
+        }
+        .onMove { from, to in
+            store.movePresets(in: folder, from: from, to: to)
+        }
+    }
+
+    // MARK: Folder actions
+
+    private func newFolder() {
+        guard let name = FolderPrompt.ask(title: "Create a new folder?", button: "Create", initial: "") else { return }
+        store.addFolder(named: name)
+    }
+
+    private func renameFolder(_ folder: PresetFolder) {
+        guard let name = FolderPrompt.ask(title: "Rename folder", button: "Rename", initial: folder.name),
+              let i = store.folders.firstIndex(where: { $0.id == folder.id }) else { return }
+        store.folders[i].name = name
+    }
+
     // MARK: Preset actions
 
     private func beginNew() {
         editingIsNew = true
-        editing = Preset(name: "New Preset", device: "")
+        var p = Preset(name: "New Preset", device: "")
+        p.folder = selectedPreset?.folder   // new presets land next to the one selected
+        editing = p
     }
 
     private func beginEdit(_ preset: Preset) {
@@ -905,5 +955,24 @@ struct RunStatusBar: View {
     static func elapsed(since start: Date, now: Date) -> String {
         let t = max(0, now.timeIntervalSince(start))
         return String(format: "%.1fs", t)
+    }
+}
+
+// Asks for a folder name. Returns nil on Cancel, "Untitled" when the field is left empty.
+enum FolderPrompt {
+    static func ask(title: String, button: String, initial: String) -> String? {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = "Folder name:"
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.stringValue = initial
+        field.placeholderString = "Untitled"
+        alert.accessoryView = field
+        alert.addButton(withTitle: button)
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? "Untitled" : name
     }
 }
