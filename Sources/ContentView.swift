@@ -1200,12 +1200,14 @@ struct VoltageButton: View {
         Button {
             open = true
         } label: {
-            Text(verbatim: preset.hasVoltageOverrides ? preset.voltageSummary : "Voltages…")
-                .lineLimit(1)
+            // Filled orange bolt when something is set away from the chip's defaults.
+            Image(systemName: preset.hasVoltageOverrides ? "bolt.fill" : "bolt")
+                .foregroundColor(preset.hasVoltageOverrides ? .orange : .primary)
         }
         .buttonStyle(.bordered)
-        .tint(preset.hasVoltageOverrides ? .orange : nil)
-        .help("VPP, VDD write, VCC verify and pulse delay, like Xgpro's programming parameters")
+        .help(preset.hasVoltageOverrides
+              ? "Programming voltages: " + preset.voltageSummary
+              : "Programming voltages (VPP, VDD write, VCC verify, pulse delay)")
         .popover(isPresented: $open, arrowEdge: .bottom) {
             VoltageEditor(preset: $preset)
                 .padding(14)
