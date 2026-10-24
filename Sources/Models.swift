@@ -55,6 +55,21 @@ struct PresetFolder: Codable, Identifiable, Hashable {
     var id = UUID()
     var name: String
     var expanded = true
+    var icon = ""      // optional emoji shown instead of the folder symbol
+
+    init(name: String, icon: String = "") {
+        self.name = name
+        self.icon = icon
+    }
+
+    // Tolerant decoding: folders.json from before icons existed still loads.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Untitled"
+        expanded = try c.decodeIfPresent(Bool.self, forKey: .expanded) ?? true
+        icon = try c.decodeIfPresent(String.self, forKey: .icon) ?? ""
+    }
 }
 
 // A saved chip setup: a friendly name plus the exact minipro device string.
@@ -174,8 +189,8 @@ final class PresetStore: ObservableObject {
     }
 
     @discardableResult
-    func addFolder(named name: String) -> PresetFolder {
-        let f = PresetFolder(name: name)
+    func addFolder(named name: String, icon: String = "") -> PresetFolder {
+        let f = PresetFolder(name: name, icon: icon)
         folders.append(f)
         return f
     }

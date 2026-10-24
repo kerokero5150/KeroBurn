@@ -87,7 +87,7 @@ struct ContentView: View {
                         DisclosureGroup(isExpanded: $folder.expanded) {
                             presetRows(in: folder.id)
                         } label: {
-                            Label(folder.name, systemImage: dropFolder == folder.id ? "folder.fill" : "folder")
+                            folderLabel(folder)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                                 .background(dropFolder == folder.id ? Color.accentColor.opacity(0.2) : Color.clear)
@@ -100,7 +100,7 @@ struct ContentView: View {
                                 }
                                 .onDrag { NSItemProvider(object: ("folder:" + folder.id.uuidString) as NSString) }
                                 .contextMenu {
-                                    Button("Rename…") { renameFolder(folder) }
+                                    Button("Edit Folder…") { editFolder(folder) }
                                     Button("Delete Folder (keep its presets)") { store.removeFolder(folder.id) }
                                 }
                         }
@@ -219,8 +219,8 @@ struct ContentView: View {
                         }
                         Divider()
                         Button("New Folder…") {
-                            if let name = FolderPrompt.ask(title: "Create a new folder?", button: "Create", initial: "") {
-                                let f = store.addFolder(named: name)
+                            if let r = FolderPrompt.ask(title: "Create a new folder?", button: "Create") {
+                                let f = store.addFolder(named: r.name, icon: r.icon)
                                 store.setFolder(f.id, for: preset.id)
                             }
                         }
@@ -261,14 +261,27 @@ struct ContentView: View {
     // MARK: Folder actions
 
     private func newFolder() {
-        guard let name = FolderPrompt.ask(title: "Create a new folder?", button: "Create", initial: "") else { return }
-        store.addFolder(named: name)
+        guard let r = FolderPrompt.ask(title: "Create a new folder?", button: "Create") else { return }
+        store.addFolder(named: r.name, icon: r.icon)
     }
 
-    private func renameFolder(_ folder: PresetFolder) {
-        guard let name = FolderPrompt.ask(title: "Rename folder", button: "Rename", initial: folder.name),
+    private func editFolder(_ folder: PresetFolder) {
+        guard let r = FolderPrompt.ask(title: "Edit folder", button: "Save", name: folder.name, icon: folder.icon),
               let i = store.folders.firstIndex(where: { $0.id == folder.id }) else { return }
-        store.folders[i].name = name
+        store.folders[i].name = r.name
+        store.folders[i].icon = r.icon
+    }
+
+    // Emoji if the folder has one, otherwise the folder symbol (filled while a drag is over it).
+    @ViewBuilder private func folderLabel(_ folder: PresetFolder) -> some View {
+        if folder.icon.isEmpty {
+            Label(folder.name, systemImage: dropFolder == folder.id ? "folder.fill" : "folder")
+        } else {
+            HStack(spacing: 6) {
+                Text(verbatim: folder.icon).font(.system(size: 16))
+                Text(folder.name)
+            }
+        }
     }
 
     // MARK: Preset actions
@@ -1018,21 +1031,65 @@ struct RunStatusBar: View {
     }
 }
 
-// Asks for a folder name. Returns nil on Cancel, "Untitled" when the field is left empty.
+// Asks for a folder name and an optional emoji. Returns nil on Cancel;
+// an empty name becomes "Untitled".
 enum FolderPrompt {
-    static func ask(title: String, button: String, initial: String) -> String? {
+    struct Result {
+        let name: String
+        let icon: String
+    }
+
+    static func ask(title: String, button: String, name: String = "", icon: String = "") -> Result? {
         let alert = NSAlert()
         alert.messageText = title
-        alert.informativeText = "Folder name:"
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        field.stringValue = initial
-        field.placeholderString = "Untitled"
-        alert.accessoryView = field
+
+        let nameField = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        nameField.stringValue = name
+        nameField.placeholderString = "Untitled"
+        let iconField = NSTextField(frame: NSRect(x: 0, y: 0, width: 60, height: 24))
+        iconField.stringValue = icon
+        iconField.placeholderString = "📁"
+
+        let emojiButton = NSButton(title: "Emoji…", target: nil, action: nil)
+        emojiButton.bezelStyle = .rounded
+        let picker = EmojiPickerOpener(field: iconField)
+        emojiButton.target = picker
+        emojiButton.action = #selector(EmojiPickerOpener.open)
+
+        let nameLabel = NSTextField(labelWithString: "Name:")
+        let iconLabel = NSTextField(labelWithString: "Emoji (optional):")
+        let iconRow = NSStackView(views: [iconField, emojiButton])
+        iconRow.orientation = .horizontal
+        iconRow.spacing = 8
+        let stack = NSStackView(views: [nameLabel, nameField, iconLabel, iconRow])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 6
+        stack.frame = NSRect(x: 0, y: 0, width: 260, height: 112)
+        alert.accessoryView = stack
+
         alert.addButton(withTitle: button)
         alert.addButton(withTitle: "Cancel")
-        alert.window.initialFirstResponder = field
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? "Untitled" : name
+        alert.window.initialFirstResponder = nameField
+        let answer = alert.runModal()
+        _ = picker   // keep the button target alive while the alert is up
+        guard answer == .alertFirstButtonReturn else { return nil }
+
+        let n = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Keep just the first character (one emoji, even a combined one like a flag).
+        let raw = iconField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let e = raw.first.map { String($0) } ?? ""
+        return Result(name: n.isEmpty ? "Untitled" : n, icon: e)
+    }
+}
+
+// Puts the cursor in the emoji field and opens the system emoji picker.
+final class EmojiPickerOpener: NSObject {
+    let field: NSTextField
+    init(field: NSTextField) { self.field = field }
+
+    @objc func open() {
+        field.window?.makeFirstResponder(field)
+        NSApp.orderFrontCharacterPalette(nil)
     }
 }
