@@ -157,6 +157,13 @@ The red cell is on pin 13, not 11, and that's correct. Pin 11 is an input of the
 
 Only chips in minipro's list can be tested, and they all run at 5V. There's no "guess what this chip is" mode on purpose. Driving the wrong pins of an unknown chip can damage it.
 
+## Batch test
+
+Tools → Batch Test… (⇧⌘B) runs the same checks on a pile of chips. Put a chip in, press Return, read the verdict, swap, repeat. A live hex dump follows the progress so you can watch the bytes go by, and the results can be saved as CSV.
+
+- **UV EPROM (read only)** writes nothing. Pin contact, chip ID, then the chip is read twice and compared. Blank and stable is a PASS, a chip with data on it is CAUTION (UV erase it before use), and a chip that reads differently twice is a FAIL.
+- **EEPROM / Flash** erases and blank checks, then writes test patterns and verifies them. Quick uses one pattern with a different value at every address, which catches dead address lines. Full adds 55/AA and AA/55 checkerboards first, so every bit has to hold both 0 and 1. When it's done, it can erase the chip, write a file of your choice, or leave the last pattern on it.
+
 ## Presets
 
 Add one with the + button, or right-click an existing one and Duplicate. In the editor, type part of a name like `2732` or `2764` and pick from the list (the up and down arrows work too). You can give a preset an emoji icon so it's easier to spot in the sidebar. The list comes from the T48 / TL866II+ section of minipro's database, so a name with a green check is one your programmer will accept. An orange triangle means minipro doesn't know that name.
