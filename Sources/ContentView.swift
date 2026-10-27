@@ -439,6 +439,7 @@ struct DetailPane: View {
     @State private var showHex = false
     @State private var showTools = false
     @State private var showLogic = false
+    @State private var showBatch = false
     @State private var showFirmware = false
     @State private var readOnOpen = false
     @State private var placementTarget: UUID?
@@ -493,7 +494,13 @@ struct DetailPane: View {
             case .splitJoin: showTools = true
             case .logicTest: showLogic = true
             case .firmware: showFirmware = true
+            case .batchTest: showBatch = true
             }
+        }
+        .sheet(isPresented: $showBatch) {
+            BatchTestView(preset: preset, chipSize: preset.isLogicDevice ? nil : catalog.size(of: preset.device))
+                .environmentObject(session)
+                .environmentObject(runner)
         }
         .sheet(isPresented: $showFirmware) {
             FirmwareUpdateView()

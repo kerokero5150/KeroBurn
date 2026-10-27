@@ -25,6 +25,8 @@ struct KeroBurnApp: App {
             CommandMenu("Tools") {
                 Button("Split / Join…") { ToolMenu.open(.splitJoin) }
                 Button("Logic Test…") { ToolMenu.open(.logicTest) }
+                Button("Batch Test…") { ToolMenu.open(.batchTest) }
+                    .keyboardShortcut("b", modifiers: [.command, .shift])
                 Divider()
                 Button("Programmer Firmware…") { ToolMenu.open(.firmware) }
             }
@@ -41,7 +43,7 @@ struct KeroBurnApp: App {
 // Menu items can't reach the window's sheets directly, so they post a notification
 // that the detail pane listens for.
 enum ToolMenu: String {
-    case splitJoin, logicTest, firmware
+    case splitJoin, logicTest, firmware, batchTest
 
     static let notification = Notification.Name("KeroBurnOpenTool")
 
