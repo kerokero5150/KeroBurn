@@ -109,6 +109,10 @@ struct BatchTestView: View {
     @State private var notes: [String] = []
     @State private var hasData = false
 
+    // What the live hex view shows: the data being written, or what was read.
+    @State private var hexData: [UInt8] = []
+    @State private var hexLabel = ""
+
     private var nextNumber: Int { (results.map(\.number).max() ?? 0) + 1 }
 
     private var cantStart: String? {
@@ -133,6 +137,8 @@ struct BatchTestView: View {
             Divider()
             settings
             verdictPanel
+            LiveHexView(data: hexData, label: hexLabel,
+                        progress: running ? runner.progress : nil, active: running)
             counters
             resultTable
             HStack {
@@ -144,7 +150,7 @@ struct BatchTestView: View {
             }
         }
         .padding(18)
-        .frame(width: 820, height: 700)
+        .frame(width: 820, height: 820)
         .interactiveDismissDisabled(running)
         .onAppear { routine = BatchRoutine.guess(for: preset.device) }
     }
@@ -316,6 +322,8 @@ struct BatchTestView: View {
         crc = ""
         notes = []
         hasData = false
+        hexData = []
+        hexLabel = ""
         runner.append(.info, "Batch test: chip #" + String(nextNumber) + ", " + routine.title)
         run(steps(), at: 0)
     }
@@ -379,6 +387,8 @@ struct BatchTestView: View {
 
         case .readTwice:
             stepText = "reading (1 of 2)"
+            hexData = []
+            hexLabel = "Reading…"
             let a = BatchPatterns.tempFile("read-a")
             let b = BatchPatterns.tempFile("read-b")
             runner.run(["-p", dev, "-r", a.path] + idArgs) { s1, _ in
@@ -386,6 +396,8 @@ struct BatchTestView: View {
                     cleanup(a, b); done("Read failed"); return
                 }
                 stepText = "reading (2 of 2)"
+                hexData = [UInt8](first)
+                hexLabel = "Read from the chip, now comparing with a second read"
                 runner.run(["-p", dev, "-r", b.path] + idArgs) { s2, _ in
                     defer { cleanup(a, b) }
                     guard s2 == 0, let second = try? Data(contentsOf: b) else { done("Second read failed"); return }
@@ -404,12 +416,14 @@ struct BatchTestView: View {
 
         case .erase:
             stepText = "erasing"
+            showBlank("Erasing")
             runner.run(["-p", dev, "-E"] + (preset.unprotect ? ["-u"] : []) + idArgs) { status, _ in
                 done(status == 0 ? nil : "Erase failed")
             }
 
         case .blank:
             stepText = "blank check"
+            showBlank("Blank check: every byte should read FF")
             runner.run(["-p", dev, "-b"] + idArgs) { status, out in
                 if status == 0 { done(nil); return }
                 done("Not blank after erase" + Self.address(in: out))
@@ -417,6 +431,8 @@ struct BatchTestView: View {
 
         case .pattern(let name, let bytes):
             stepText = "writing " + name
+            hexData = bytes
+            hexLabel = "Writing the " + name
             let f = BatchPatterns.tempFile("pattern")
             do { try Data(bytes).write(to: f) } catch { done("Couldn't make the test pattern"); return }
             runner.run(["-p", dev, "-w", f.path] + writeArgs + idArgs) { status, out in
@@ -426,10 +442,17 @@ struct BatchTestView: View {
 
         case .writeFile(let url):
             stepText = "writing " + url.lastPathComponent
+            hexData = (try? [UInt8](Data(contentsOf: url))) ?? []
+            hexLabel = "Writing " + url.lastPathComponent
             runner.run(["-p", dev, "-w", url.path] + writeArgs + (preset.skipSizeCheck ? ["-s"] : []) + idArgs) { status, out in
                 done(status == 0 ? nil : "Writing " + url.lastPathComponent + " failed" + Self.address(in: out))
             }
         }
+    }
+
+    private func showBlank(_ label: String) {
+        hexData = [UInt8](repeating: 0xFF, count: max(chipSize ?? 0, 256))
+        hexLabel = label
     }
 
     private var writeArgs: [String] {
@@ -571,5 +594,58 @@ enum BatchPatterns {
     static func tempFile(_ tag: String) -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("keroburn-batch-" + tag + "-" + UUID().uuidString + ".bin")
+    }
+}
+
+// A small hex dump that follows the progress bar, so you can watch the bytes go by.
+struct LiveHexView: View {
+    let data: [UInt8]
+    let label: String
+    let progress: Double?
+    let active: Bool
+
+    private let rows = 8
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(verbatim: label.isEmpty ? " " : label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                ForEach(0..<rows, id: \.self) { r in
+                    Text(verbatim: line(for: firstRow + r))
+                        .foregroundColor(r == cursorRow - firstRow && active ? .accentColor : .primary)
+                }
+            }
+            .font(.system(size: 11.5, design: .monospaced))
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color(NSColor.textBackgroundColor)))
+            .opacity(active ? 1 : 0.55)
+        }
+    }
+
+    private var totalRows: Int { max(1, (data.count + 15) / 16) }
+
+    // The row the programmer has got to, from the progress bar.
+    private var cursorRow: Int {
+        guard let p = progress else { return 0 }
+        return min(totalRows - 1, Int(Double(totalRows) * min(max(p, 0), 1)))
+    }
+
+    // Keep the cursor row a little below the top while it moves.
+    private var firstRow: Int {
+        max(0, min(cursorRow - 2, totalRows - rows))
+    }
+
+    private func line(for row: Int) -> String {
+        let start = row * 16
+        guard start < data.count else { return "" }
+        let end = min(start + 16, data.count)
+        let bytes = data[start..<end]
+        let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+        let ascii = String(bytes.map { (32...126).contains($0) ? Character(UnicodeScalar($0)) : "." })
+        let pad = String(repeating: " ", count: max(0, 47 - hex.count))
+        return String(format: "%06X", start) + "  " + hex + pad + "  " + ascii
     }
 }
