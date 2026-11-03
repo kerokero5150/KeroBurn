@@ -14,6 +14,8 @@ minipro, libusb and the device database are bundled inside the app, so you don't
 
 Open the KeroBurn .dmg and drag KeroBurn into Applications.
 
+![Drag KeroBurn onto the Applications folder in the disk image](docs/install-dmg.png)
+
 The app is only ad hoc signed, not notarized, so macOS will refuse to open it the first time. How you get past that depends on your macOS version:
 
 - **macOS 14 Sonoma and older:** right-click the app, choose Open, then Open again in the dialog.
