@@ -146,7 +146,7 @@ struct ContentView: View {
                 Spacer()
                 catalogStatus
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(SidebarToolButtonStyle())
             .padding(8)
             .disabled(session.isBusy)
         }
@@ -1351,5 +1351,35 @@ struct EmptyClickCatcher: NSViewRepresentable {
     static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
         if let m = coordinator.monitor { NSEvent.removeMonitor(m) }
         coordinator.monitor = nil
+    }
+}
+
+// Bottom bar buttons in the sidebar. Usable ones are drawn in full colour with a
+// light box on hover; disabled ones fade right back, so the two are easy to tell apart.
+struct SidebarToolButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        ToolButton(configuration: configuration)
+    }
+
+    // Not named Body: that name is ButtonStyle's associated type.
+    private struct ToolButton: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isEnabled) private var isEnabled
+        @State private var hovering = false
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(isEnabled ? .primary : Color.secondary.opacity(0.3))
+                .frame(width: 26, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color.primary.opacity(!isEnabled ? 0 :
+                                                    configuration.isPressed ? 0.18 :
+                                                    hovering ? 0.09 : 0))
+                )
+                .contentShape(Rectangle())
+                .onHover { hovering = $0 }
+        }
     }
 }
