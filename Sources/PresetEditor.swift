@@ -9,6 +9,7 @@ struct PresetEditor: View {
     @State private var query: String
     @State private var keyMonitor: Any?
     @State private var offsetIndex: Int?
+    @FocusState private var findFocused: Bool
     let isNew: Bool
     let onSave: (Preset) -> Void
 
@@ -29,6 +30,14 @@ struct PresetEditor: View {
             Text(verbatim: isNew ? String("New Preset") : String("Edit Preset"))
                 .font(.title2).bold()
 
+            row("Find") {
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField("Search minipro's list, e.g. 39SF040 or 20V8", text: $query)
+                        .focused($findFocused)
+                    resultsList
+                }
+            }
+
             row("Name") {
                 TextField("e.g. ROM-inator HI (PLCC32)", text: $draft.name)
             }
@@ -38,13 +47,6 @@ struct PresetEditor: View {
                     TextField("minipro device name", text: $draft.device)
                         .font(.system(.body, design: .monospaced))
                     deviceStatus
-                }
-            }
-
-            row("Find") {
-                VStack(alignment: .leading, spacing: 6) {
-                    TextField("Search minipro's list, e.g. 39SF040 or 20V8", text: $query)
-                    resultsList
                 }
             }
 
@@ -148,6 +150,8 @@ struct PresetEditor: View {
         .onAppear {
             if !catalog.isLoaded { catalog.load() }
             installArrowKeys()
+            // Start in the search box so a new preset begins with finding the chip.
+            if isNew { DispatchQueue.main.async { findFocused = true } }
         }
         .onDisappear {
             if let m = keyMonitor { NSEvent.removeMonitor(m) }

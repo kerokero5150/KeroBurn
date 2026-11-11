@@ -305,7 +305,7 @@ struct ContentView: View {
     private func beginNew() {
         editingIsNew = true
         var p = Preset(name: "New Preset", device: "")
-        p.folder = selectedPreset?.folder   // new presets land next to the one selected
+        p.folder = nil   // new presets always start at the top level, outside any folder
         editing = p
     }
 
