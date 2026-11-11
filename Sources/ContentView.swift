@@ -110,6 +110,8 @@ struct ContentView: View {
                 }
             }
             .listStyle(.sidebar)
+            // Clicking the empty part of the list clears the selection.
+            .background(EmptyClickCatcher { selection = nil })
             .onDrop(of: [UTType.plainText], isTargeted: $dropTopLevel) { providers in
                 // Dropped on the empty part of the list: out of any folder, to the end.
                 dropItem(providers, preset: { id in store.place(id, in: nil, at: nil) })
@@ -1304,5 +1306,50 @@ struct ChipVoltages {
         v.vcc = find("VCC verify voltage:\\s*([0-9.]+)")
         v.pulse = find("(?:Pulse delay|write pulse):\\s*([0-9]+)")
         return v
+    }
+}
+
+// Watches clicks inside the view it sits behind (the sidebar list). A click that
+// lands on the list's table but not on a row calls onEmptyClick. SwiftUI's List
+// on macOS doesn't drop the selection on its own when you click below the rows.
+struct EmptyClickCatcher: NSViewRepresentable {
+    let onEmptyClick: () -> Void
+
+    final class Coordinator {
+        weak var view: NSView?
+        var monitor: Any?
+        var onEmptyClick: () -> Void = {}
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSView {
+        let v = NSView()
+        let c = context.coordinator
+        c.view = v
+        c.onEmptyClick = onEmptyClick
+        c.monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak c] event in
+            guard let c = c, let v = c.view, let window = v.window, event.window === window else { return event }
+            let inView = v.convert(event.locationInWindow, from: nil)
+            guard v.bounds.contains(inView) else { return event }
+            var hit = window.contentView?.hitTest(event.locationInWindow)
+            while let h = hit, !(h is NSTableView) { hit = h.superview }
+            guard let table = hit as? NSTableView else { return event }
+            if table.row(at: table.convert(event.locationInWindow, from: nil)) == -1 {
+                let action = c.onEmptyClick
+                DispatchQueue.main.async { action() }
+            }
+            return event
+        }
+        return v
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.onEmptyClick = onEmptyClick
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        if let m = coordinator.monitor { NSEvent.removeMonitor(m) }
+        coordinator.monitor = nil
     }
 }
