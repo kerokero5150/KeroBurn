@@ -472,8 +472,23 @@ enum ActivityLog {
             }
         }
         for t in tail { line += "\n    | \(t)" }
-        line += "\n"
+        write(line + "\n", at: now)
+    }
 
+    // One line per chip from Batch Test.
+    static func recordBatch(number: Int, verdict: String, preset: Preset, routine: String,
+                            chipID: String, crc: String, seconds: Int, note: String) {
+        let now = Date()
+        var line = "[" + stampFormatter.string(from: now) + "] Batch #" + String(number) + " " + verdict
+        line += "  preset=\"\(preset.name)\" device=\(preset.device) routine=\"\(routine)\""
+        line += " id=" + chipID
+        if !crc.isEmpty { line += " crc32=" + crc }
+        line += " time=" + String(seconds) + "s"
+        line += "\n    | " + note + "\n"
+        write(line, at: now)
+    }
+
+    private static func write(_ line: String, at now: Date) {
         DispatchQueue.global(qos: .utility).async {
             let fm = FileManager.default
             try? fm.createDirectory(at: directory, withIntermediateDirectories: true)

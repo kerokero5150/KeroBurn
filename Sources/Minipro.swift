@@ -112,8 +112,15 @@ final class MiniproRunner: ObservableObject {
     private var pending = ""
     private let maxLines = 3000
 
+    // Output of the minipro run in progress. Kept apart from `lines`,
+    // which is capped and drops old lines from the front once full.
+    private var runOutput: [String] = []
+
     func append(_ kind: LogLine.Kind, _ text: String) {
-        if kind == .output { noteHardware(text) }
+        if kind == .output {
+            noteHardware(text)
+            runOutput.append(text)
+        }
         lines.append(LogLine(kind: kind, text: text))
         if lines.count > maxLines { lines.removeFirst(lines.count - maxLines) }
     }
@@ -145,7 +152,7 @@ final class MiniproRunner: ObservableObject {
             inputPipe = ip
         }
 
-        let startIndex = lines.count
+        runOutput = []
         if let i = args.firstIndex(of: "-p"), i + 1 < args.count {
             currentDevice = args[i + 1]
         } else {
@@ -176,8 +183,7 @@ final class MiniproRunner: ObservableObject {
                 self.progress = nil
                 self.liveLine = ""
                 self.phase = nil
-                let produced = self.lines.suffix(from: min(startIndex, self.lines.count))
-                    .filter { $0.kind == .output }.map(\.text)
+                let produced = self.runOutput
                 completion(proc.terminationStatus, produced)
             }
         }

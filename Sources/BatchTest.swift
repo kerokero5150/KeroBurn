@@ -511,6 +511,9 @@ struct BatchTestView: View {
         }
         let kind: LogLine.Kind = verdict == .fail ? .error : .success
         runner.append(kind, "Chip #" + String(r.number) + " " + r.verdictText + ": " + note)
+        ActivityLog.recordBatch(number: r.number, verdict: r.verdictText, preset: preset,
+                                routine: routine.title, chipID: r.chipID, crc: r.crc,
+                                seconds: r.seconds, note: note)
     }
 
     // MARK: Files
