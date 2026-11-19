@@ -627,8 +627,12 @@ struct DetailPane: View {
                 preset.files = session.savedFiles
                 session.markSaved(to: preset)
             }
-            .disabled(busy || session.files.isEmpty || session.loadedFrom == preset.id)
-            .help("Remember these files (and their offsets) so this preset loads them by itself")
+            // An empty list can be saved too: that's how a preset forgets its files.
+            .disabled(busy || session.loadedFrom == preset.id ||
+                      (session.files.isEmpty && preset.files.isEmpty))
+            .help(session.files.isEmpty
+                  ? "Remove the saved files from this preset, so it opens empty"
+                  : "Remember these files (and their offsets) so this preset loads them by itself")
             Button("Add…", action: openFiles)
             Button("Split / Join…") { showTools = true }
                 .disabled(busy)
